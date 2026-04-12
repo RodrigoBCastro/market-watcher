@@ -575,6 +575,29 @@ a {
   font: inherit;
 }
 
+.compact-input {
+  max-width: 170px;
+}
+
+.small-input {
+  min-height: 34px;
+  max-width: 100px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 0 8px;
+  font: inherit;
+}
+
+.inline-link {
+  border: none;
+  background: transparent;
+  color: #1a546b;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .login-form,
 .asset-form {
   display: grid;
@@ -734,6 +757,28 @@ a {
   gap: 8px;
 }
 
+.alert-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.alert-item {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.alert-item small {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+
 .opportunity-panel {
   display: grid;
   gap: 8px;
@@ -871,7 +916,7 @@ a {
   }
 
   .side-nav nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .side-nav .nav-item {

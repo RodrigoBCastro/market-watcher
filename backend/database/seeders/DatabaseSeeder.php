@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             MonitoredAssetSeeder::class,
             MacroSnapshotSeeder::class,
+            SetupMetricSeeder::class,
         ]);
     }
 }

@@ -32,6 +32,14 @@ const routes = [
     name: 'briefs',
   },
   {
+    path: '/calls',
+    name: 'calls',
+  },
+  {
+    path: '/quant',
+    name: 'quant',
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: { name: 'dashboard' },
   },

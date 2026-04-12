@@ -21,6 +21,17 @@ Backend Laravel 13 para análise técnica de swing trade na B3, com ingestão de
   - detecção de setups obrigatórios
   - scoring por dimensão
   - regras de veto (stop, alvo, RR, ativo esticado)
+- Módulo de Calls (v2):
+  - geração de calls em `draft` via motor
+  - fila de aprovação/rejeição/publicação
+  - avaliação de calls abertas e registro de outcomes
+  - métricas probabilísticas por setup (winrate/expectancy/edge)
+  - filtros por edge e histórico mínimo
+- Quant (v2):
+  - dashboard quantitativo
+  - backtest engine com persistência de resultados
+  - score optimizer para pesos de ranking técnico x expectancy
+  - estrutura preparada para execução futura (`OrderExecutionService`)
 - Jobs e commands operacionais
 - Endpoints REST de auth, watchlist, sync, análise, oportunidades, briefs e dashboard
 - Seeders básicos (admin, watchlist inicial, macro snapshot)
@@ -52,6 +63,11 @@ Além das tabelas padrão do Laravel, foram adicionadas:
 - `generated_brief_items`
 - `sync_runs`
 - `sync_run_logs`
+- `trade_calls`
+- `call_reviews`
+- `trade_outcomes`
+- `setup_metrics`
+- `backtest_results`
 
 ## Configuração
 
@@ -70,6 +86,17 @@ HG_BRASIL_RETRIES=2
 
 MARKET_SYNC_ASSET_DAYS=320
 API_TOKEN_TTL_DAYS=30
+
+CALLS_MAX_PER_CYCLE=8
+CALLS_MIN_SCORE=70
+CALLS_MIN_RR=1.5
+CALLS_MIN_HISTORY=8
+CALLS_MAX_HOLDING_DAYS=20
+
+RANKING_TECHNICAL_WEIGHT=0.6
+RANKING_EXPECTANCY_WEIGHT=0.4
+OPTIMIZER_MIN_RANK=55
+QUANT_ALERT_DRAWDOWN_THRESHOLD=8
 ```
 
 ## Execução
@@ -118,6 +145,26 @@ Authorization: Bearer <token>
   - `GET /api/briefs/{date}`
 - Dashboard:
   - `GET /api/dashboard`
+- Calls:
+  - `GET /api/calls`
+  - `GET /api/calls/queue`
+  - `GET /api/calls/{id}`
+  - `GET /api/calls/outcomes`
+  - `POST /api/calls/generate`
+  - `POST /api/calls/evaluate-open`
+  - `POST /api/calls/{id}/approve`
+  - `POST /api/calls/{id}/reject`
+  - `POST /api/calls/{id}/publish`
+- Quant:
+  - `GET /api/quant/dashboard`
+  - `GET /api/quant/setup-metrics`
+- Backtest:
+  - `GET /api/backtests`
+  - `POST /api/backtests/run`
+- Optimizer:
+  - `GET /api/optimizer/current`
+  - `POST /api/optimizer/run`
+  - `POST /api/optimizer/apply`
 
 ## Commands
 
@@ -127,6 +174,10 @@ php artisan market:sync-context --now
 php artisan market:recalculate-indicators {ticker?} --now
 php artisan market:recalculate-scores {ticker?} --now
 php artisan market:generate-brief {date?} --now
+php artisan market:generate-weekly-calls --now
+php artisan market:evaluate-open-trades --now
+php artisan market:run-backtest {strategy?} --from=YYYY-MM-DD --to=YYYY-MM-DD --holding=20
+php artisan market:optimize-ranking-weights --apply
 ```
 
 Sem `--now`, os jobs são enfileirados.
@@ -140,6 +191,8 @@ Configurado em `routes/console.php`:
 - `market:recalculate-indicators`
 - `market:recalculate-scores`
 - `market:generate-brief`
+- `market:evaluate-open-trades`
+- `market:generate-weekly-calls`
 
 ## Seed Inicial
 

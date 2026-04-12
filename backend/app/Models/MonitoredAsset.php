@@ -55,4 +55,14 @@ class MonitoredAsset extends Model
     {
         return $this->hasMany(GeneratedBriefItem::class);
     }
+
+    public function tradeCalls(): HasMany
+    {
+        return $this->hasMany(TradeCall::class);
+    }
+
+    public function tradeOutcomes(): HasMany
+    {
+        return $this->hasMany(TradeOutcome::class);
+    }
 }

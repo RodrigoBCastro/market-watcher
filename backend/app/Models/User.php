@@ -51,6 +51,11 @@ class User extends Authenticatable
         return $this->hasMany(UserApiToken::class);
     }
 
+    public function callReviews(): HasMany
+    {
+        return $this->hasMany(CallReview::class, 'reviewer_id');
+    }
+
     /**
      * @return array{token: string, model: UserApiToken}
      */

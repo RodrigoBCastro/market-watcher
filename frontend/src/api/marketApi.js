@@ -34,5 +34,27 @@ export function createMarketApi(getToken) {
     generateBrief: (date = null) => http.post('/briefs/generate', date ? { date } : {}),
     getBriefs: () => http.get('/briefs'),
     getBriefByDate: (date) => http.get(`/briefs/${date}`),
+
+    getCalls: (status = null, limit = 100) =>
+      http.get(status ? `/calls?status=${encodeURIComponent(status)}&limit=${limit}` : `/calls?limit=${limit}`),
+    getCallQueue: (limit = 100) => http.get(`/calls/queue?limit=${limit}`),
+    getCallById: (id) => http.get(`/calls/${id}`),
+    getCallOutcomes: (limit = 100) => http.get(`/calls/outcomes?limit=${limit}`),
+    generateCalls: (sync = false) => http.post(sync ? '/calls/generate?sync=1' : '/calls/generate', {}),
+    evaluateOpenTrades: (sync = false) =>
+      http.post(sync ? '/calls/evaluate-open?sync=1' : '/calls/evaluate-open', {}),
+    approveCall: (id, comments = '') => http.post(`/calls/${id}/approve`, comments ? { comments } : {}),
+    rejectCall: (id, comments = '') => http.post(`/calls/${id}/reject`, comments ? { comments } : {}),
+    publishCall: (id) => http.post(`/calls/${id}/publish`, {}),
+
+    getQuantDashboard: () => http.get('/quant/dashboard'),
+    getQuantSetupMetrics: () => http.get('/quant/setup-metrics'),
+
+    getBacktests: (limit = 30) => http.get(`/backtests?limit=${limit}`),
+    runBacktest: (payload = {}) => http.post('/backtests/run', payload),
+
+    getOptimizerCurrent: () => http.get('/optimizer/current'),
+    runOptimizer: () => http.post('/optimizer/run', {}),
+    applyOptimizerWeights: (payload) => http.post('/optimizer/apply', payload),
   }
 }

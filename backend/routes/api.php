@@ -5,10 +5,14 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\AssetAnalysisController;
 use App\Http\Controllers\Api\AssetController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BacktestController;
 use App\Http\Controllers\Api\BriefController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\OptimizerController;
 use App\Http\Controllers\Api\OpportunityController;
+use App\Http\Controllers\Api\QuantController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\TradeCallController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -48,4 +52,24 @@ Route::middleware('api.token')->group(function (): void {
         ->where('date', '\\d{4}-\\d{2}-\\d{2}');
 
     Route::get('/dashboard', DashboardController::class);
+
+    Route::get('/calls', [TradeCallController::class, 'index']);
+    Route::get('/calls/queue', [TradeCallController::class, 'queue']);
+    Route::get('/calls/{id}', [TradeCallController::class, 'show'])->whereNumber('id');
+    Route::get('/calls/outcomes', [TradeCallController::class, 'outcomes']);
+    Route::post('/calls/generate', [TradeCallController::class, 'generate']);
+    Route::post('/calls/evaluate-open', [TradeCallController::class, 'evaluateOpen']);
+    Route::post('/calls/{id}/approve', [TradeCallController::class, 'approve'])->whereNumber('id');
+    Route::post('/calls/{id}/reject', [TradeCallController::class, 'reject'])->whereNumber('id');
+    Route::post('/calls/{id}/publish', [TradeCallController::class, 'publish'])->whereNumber('id');
+
+    Route::get('/quant/dashboard', [QuantController::class, 'dashboard']);
+    Route::get('/quant/setup-metrics', [QuantController::class, 'setupMetrics']);
+
+    Route::get('/backtests', [BacktestController::class, 'index']);
+    Route::post('/backtests/run', [BacktestController::class, 'run']);
+
+    Route::get('/optimizer/current', [OptimizerController::class, 'current']);
+    Route::post('/optimizer/run', [OptimizerController::class, 'run']);
+    Route::post('/optimizer/apply', [OptimizerController::class, 'apply']);
 });

@@ -9,6 +9,8 @@ use App\Models\AssetAnalysisScore;
 use App\Models\GeneratedBrief;
 use App\Models\MacroSnapshot;
 use App\Models\MonitoredAsset;
+use App\Models\SetupMetric;
+use App\Models\TradeOutcome;
 use Illuminate\Http\JsonResponse;
 
 class DashboardController extends Controller
@@ -57,6 +59,11 @@ class DashboardController extends Controller
         ])->values();
 
         $latestBrief = GeneratedBrief::query()->orderByDesc('brief_date')->first();
+        $outcomes = TradeOutcome::query()->get();
+        $totalTrades = $outcomes->count();
+        $wins = $outcomes->where('result', 'win')->count();
+        $winrate = $totalTrades > 0 ? ($wins / $totalTrades) * 100 : 0.0;
+        $expectancy = (float) ($outcomes->avg('pnl_percent') ?? 0.0);
 
         return response()->json([
             'market_cards' => [
@@ -75,6 +82,50 @@ class DashboardController extends Controller
                 'market_summary' => $latestBrief->market_summary,
                 'conclusion' => $latestBrief->conclusion,
             ] : null,
+            'quant' => [
+                'total_trades' => $totalTrades,
+                'winrate' => round($winrate, 3),
+                'expectancy' => round($expectancy, 4),
+                'profit_factor' => $this->profitFactor($outcomes->all()),
+                'setup_ranking' => SetupMetric::query()
+                    ->orderByDesc('expectancy')
+                    ->limit(6)
+                    ->get(['setup_code', 'winrate', 'expectancy', 'edge', 'total_trades', 'is_enabled'])
+                    ->map(static fn (SetupMetric $setup): array => [
+                        'setup_code' => $setup->setup_code,
+                        'winrate' => (float) $setup->winrate,
+                        'expectancy' => (float) $setup->expectancy,
+                        'edge' => (float) $setup->edge,
+                        'total_trades' => (int) $setup->total_trades,
+                        'is_enabled' => (bool) $setup->is_enabled,
+                    ])
+                    ->values(),
+            ],
         ]);
+    }
+
+    /**
+     * @param  array<int, TradeOutcome>  $outcomes
+     */
+    private function profitFactor(array $outcomes): ?float
+    {
+        $gains = 0.0;
+        $losses = 0.0;
+
+        foreach ($outcomes as $outcome) {
+            $pnl = (float) $outcome->pnl_percent;
+
+            if ($pnl >= 0) {
+                $gains += $pnl;
+            } else {
+                $losses += abs($pnl);
+            }
+        }
+
+        if ($losses <= 0.0) {
+            return $gains > 0 ? round($gains, 4) : null;
+        }
+
+        return round($gains / $losses, 4);
     }
 }

@@ -11,6 +11,8 @@ import AssetsView from './views/AssetsView.vue'
 import AssetDetailView from './views/AssetDetailView.vue'
 import OpportunitiesView from './views/OpportunitiesView.vue'
 import BriefsView from './views/BriefsView.vue'
+import CallsView from './views/CallsView.vue'
+import QuantView from './views/QuantView.vue'
 
 const auth = useAuth()
 const router = useRouter()
@@ -20,6 +22,8 @@ const navItems = [
   { key: 'dashboard', label: 'Dashboard', icon: 'DB' },
   { key: 'assets', label: 'Watchlist', icon: 'WL' },
   { key: 'opportunities', label: 'Oportunidades', icon: 'OP' },
+  { key: 'calls', label: 'Calls', icon: 'CL' },
+  { key: 'quant', label: 'Quant', icon: 'QT' },
   { key: 'briefs', label: 'Briefs', icon: 'BR' },
 ]
 
@@ -35,6 +39,8 @@ const activeView = computed(() => {
   if (route.name === 'assets') return 'assets'
   if (route.name === 'asset-detail') return 'asset-detail'
   if (route.name === 'opportunities') return 'opportunities'
+  if (route.name === 'calls') return 'calls'
+  if (route.name === 'quant') return 'quant'
   if (route.name === 'briefs') return 'briefs'
   return 'dashboard'
 })
@@ -49,6 +55,8 @@ const shellTitle = computed(() => {
   if (activeView.value === 'assets') return 'Gestão da Watchlist'
   if (activeView.value === 'asset-detail') return `Ativo ${selectedTicker.value}`
   if (activeView.value === 'opportunities') return 'Ranking de Oportunidades'
+  if (activeView.value === 'calls') return 'Módulo de Calls'
+  if (activeView.value === 'quant') return 'Dashboard Quantitativo'
   if (activeView.value === 'briefs') return 'Brief Diário Operacional'
   return 'MarketWatcher'
 })
@@ -58,6 +66,8 @@ const shellSubtitle = computed(() => {
   if (activeView.value === 'assets') return 'Cadastro, monitoramento e sincronização de ativos.'
   if (activeView.value === 'asset-detail') return 'Leitura técnica detalhada para decisão tática.'
   if (activeView.value === 'opportunities') return 'Top oportunidades e ativos para evitar no dia.'
+  if (activeView.value === 'calls') return 'Geração, aprovação, publicação e acompanhamento de calls.'
+  if (activeView.value === 'quant') return 'Métricas de edge, backtest e otimização de pesos.'
   if (activeView.value === 'briefs') return 'Resumo executivo com ranking de ideias e risco.'
   return ''
 })
@@ -102,6 +112,8 @@ function navigateTo(viewKey) {
     dashboard: 'dashboard',
     assets: 'assets',
     opportunities: 'opportunities',
+    calls: 'calls',
+    quant: 'quant',
     briefs: 'briefs',
   }
 
@@ -230,6 +242,19 @@ onMounted(bootstrapSession)
       v-else-if="activeView === 'opportunities'"
       :api="auth.api"
       @open-asset="openAsset"
+      @notify="notify"
+    />
+
+    <CallsView
+      v-else-if="activeView === 'calls'"
+      :api="auth.api"
+      @open-asset="openAsset"
+      @notify="notify"
+    />
+
+    <QuantView
+      v-else-if="activeView === 'quant'"
+      :api="auth.api"
       @notify="notify"
     />
 
