@@ -1,0 +1,18 @@
+# Global OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+
+# Root-level env/log artifacts
+.env
+*.log
+
+# Module build/runtime artifacts (extra safety)
+backend/vendor/
+backend/node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
+# Local docs not to version for now
+docs/
