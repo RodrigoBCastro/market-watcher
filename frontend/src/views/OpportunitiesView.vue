@@ -5,6 +5,7 @@ import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
 import LoadingState from '../components/ui/LoadingState.vue'
 import OpportunityTable from '../components/opportunities/OpportunityTable.vue'
+import { mdiFilterOutline } from '../constants/icons'
 
 const props = defineProps({
   api: { type: Object, required: true },
@@ -50,7 +51,15 @@ onMounted(loadData)
     <SectionHeader title="Oportunidades" subtitle="Ranking do motor de decisão para entrada e exclusão.">
       <template #actions>
         <input v-model="filterDate" class="date-input" type="date" aria-label="Filtrar por data" />
-        <BaseButton size="sm" variant="ghost" :loading="loading" @click="loadData">Filtrar</BaseButton>
+        <BaseButton
+          size="sm"
+          variant="ghost"
+          :icon-path="mdiFilterOutline"
+          :loading="loading"
+          @click="loadData"
+        >
+          Filtrar
+        </BaseButton>
       </template>
     </SectionHeader>
 

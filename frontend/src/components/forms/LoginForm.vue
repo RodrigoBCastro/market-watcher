@@ -1,6 +1,7 @@
 <script setup>
 import { reactive } from 'vue'
 import BaseButton from '../ui/BaseButton.vue'
+import { mdiLogin } from '../../constants/icons'
 
 const props = defineProps({
   loading: { type: Boolean, default: false },
@@ -36,6 +37,6 @@ function onSubmit() {
 
     <p v-if="error" class="form-error">{{ error }}</p>
 
-    <BaseButton type="submit" :loading="loading" block>Entrar no Dashboard</BaseButton>
+    <BaseButton type="submit" :icon-path="mdiLogin" :loading="loading" block>Entrar no Dashboard</BaseButton>
   </form>
 </template>

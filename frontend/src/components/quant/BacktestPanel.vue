@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import BaseButton from '../ui/BaseButton.vue'
 import DataTable from '../ui/DataTable.vue'
+import { mdiPlayCircleOutline } from '../../constants/icons'
 import { formatDate, formatNumber, formatPercent } from '../../utils/format'
 
 const props = defineProps({
@@ -79,9 +80,9 @@ function runBacktest() {
         Holding (dias)
         <input v-model.number="holding" type="number" min="1" max="120" class="small-input" />
       </label>
-      <BaseButton :loading="loading" @click="runBacktest">Rodar Backtest</BaseButton>
+      <BaseButton :icon-path="mdiPlayCircleOutline" :loading="loading" @click="runBacktest">Rodar Backtest</BaseButton>
     </div>
 
-    <DataTable :columns="columns" :rows="items" row-key="id" />
+    <DataTable :columns="columns" :rows="items" row-key="id" min-width="100%" wrap-cells />
   </div>
 </template>

@@ -2,6 +2,7 @@
 import DataTable from '../ui/DataTable.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import StatusBadge from '../ui/StatusBadge.vue'
+import { mdiOpenInNew } from '../../constants/icons'
 import { formatNumber } from '../../utils/format'
 
 const props = defineProps({
@@ -23,7 +24,7 @@ const columns = [
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="items" row-key="symbol">
+  <DataTable :columns="columns" :rows="items" row-key="symbol" min-width="100%" wrap-cells>
     <template #cell-classification="{ value }">
       <StatusBadge :label="value || 'Sem classificação'" />
     </template>
@@ -33,7 +34,15 @@ const columns = [
     </template>
 
     <template #cell-actions="{ row }">
-      <BaseButton size="sm" variant="ghost" @click="emit('open-asset', row.symbol)">Detalhes</BaseButton>
+      <BaseButton
+        size="sm"
+        variant="ghost"
+        :icon-path="mdiOpenInNew"
+        icon-only
+        :aria-label="`Abrir detalhes de ${row.symbol}`"
+        :title="`Abrir ${row.symbol}`"
+        @click="emit('open-asset', row.symbol)"
+      />
     </template>
   </DataTable>
 </template>

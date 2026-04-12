@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import BaseButton from '../ui/BaseButton.vue'
 import DataTable from '../ui/DataTable.vue'
+import { mdiCheckCircleOutline, mdiTune } from '../../constants/icons'
 import { formatNumber } from '../../utils/format'
 
 const props = defineProps({
@@ -65,7 +66,7 @@ function applyCurrent() {
     <h3>Score Optimizer</h3>
 
     <div class="inline-actions">
-      <BaseButton :loading="loading" @click="emit('run')">Otimizar Pesos</BaseButton>
+      <BaseButton :icon-path="mdiTune" :loading="loading" @click="emit('run')">Otimizar Pesos</BaseButton>
       <label>
         Técnico
         <input v-model.number="technicalWeight" type="number" step="0.01" min="0.01" class="small-input" />
@@ -74,7 +75,7 @@ function applyCurrent() {
         Expectancy
         <input v-model.number="expectancyWeight" type="number" step="0.01" min="0.01" class="small-input" />
       </label>
-      <BaseButton variant="secondary" :loading="applying" @click="applyCurrent">
+      <BaseButton variant="secondary" :icon-path="mdiCheckCircleOutline" :loading="applying" @click="applyCurrent">
         Aplicar Pesos
       </BaseButton>
     </div>
@@ -84,6 +85,8 @@ function applyCurrent() {
       :columns="columns"
       :rows="result.tested_profiles"
       compact
+      min-width="100%"
+      wrap-cells
     />
 
     <p v-if="result?.performance_score !== undefined" class="muted">

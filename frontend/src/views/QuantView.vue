@@ -9,6 +9,7 @@ import SetupRankingTable from '../components/quant/SetupRankingTable.vue'
 import QuantAlertsPanel from '../components/quant/QuantAlertsPanel.vue'
 import BacktestPanel from '../components/quant/BacktestPanel.vue'
 import OptimizerPanel from '../components/quant/OptimizerPanel.vue'
+import { mdiRefresh } from '../constants/icons'
 import { formatNumber, formatPercent } from '../utils/format'
 
 const props = defineProps({
@@ -117,7 +118,9 @@ onMounted(loadData)
   <section class="view-stack">
     <SectionHeader title="Quant" subtitle="Edge estatístico, backtest e otimização de ranking.">
       <template #actions>
-        <BaseButton size="sm" variant="ghost" :loading="loading" @click="loadData">Atualizar</BaseButton>
+        <BaseButton size="sm" variant="ghost" :icon-path="mdiRefresh" :loading="loading" @click="loadData">
+          Atualizar
+        </BaseButton>
       </template>
     </SectionHeader>
 

@@ -1,6 +1,8 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import BaseButton from '../ui/BaseButton.vue'
+import FormSwitch from './FormSwitch.vue'
+import { mdiCheckCircleOutline, mdiCloseCircleOutline } from '../../constants/icons'
 
 const props = defineProps({
   modelValue: { type: Object, default: null },
@@ -45,36 +47,40 @@ function submit() {
 </script>
 
 <template>
-  <form class="asset-form" @submit.prevent="submit">
-    <div class="form-grid">
-      <label>
+  <form class="asset-form asset-form-shell" @submit.prevent="submit">
+    <div class="asset-form-grid">
+      <label class="asset-form-field">
         Ticker
         <input v-model="form.ticker" :disabled="Boolean(form.id)" maxlength="12" required />
       </label>
-      <label>
+      <label class="asset-form-field">
         Nome
         <input v-model="form.name" maxlength="255" required />
       </label>
-      <label>
+      <label class="asset-form-field">
         Setor
         <input v-model="form.sector" maxlength="120" />
       </label>
     </div>
 
-    <div class="toggle-row">
-      <label class="toggle">
-        <input v-model="form.is_active" type="checkbox" />
-        Ativo
-      </label>
-      <label class="toggle">
-        <input v-model="form.monitoring_enabled" type="checkbox" />
-        Monitoramento habilitado
-      </label>
+    <div class="asset-switch-grid">
+      <FormSwitch
+        v-model="form.is_active"
+        label="Ativo"
+        description="Controla participação do ativo no sistema."
+      />
+      <FormSwitch
+        v-model="form.monitoring_enabled"
+        label="Monitoramento"
+        description="Permite sincronização e análise periódica."
+      />
     </div>
 
     <div class="form-actions">
-      <BaseButton variant="ghost" type="button" @click="emit('cancel')">Cancelar</BaseButton>
-      <BaseButton type="submit" :loading="loading">Salvar ativo</BaseButton>
+      <BaseButton variant="ghost" :icon-path="mdiCloseCircleOutline" type="button" @click="emit('cancel')">
+        Cancelar
+      </BaseButton>
+      <BaseButton :icon-path="mdiCheckCircleOutline" type="submit" :loading="loading">Salvar ativo</BaseButton>
     </div>
   </form>
 </template>

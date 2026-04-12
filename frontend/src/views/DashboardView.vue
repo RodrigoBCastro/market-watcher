@@ -10,6 +10,7 @@ import WatchlistPanel from '../components/dashboard/WatchlistPanel.vue'
 import ClassificationPanel from '../components/dashboard/ClassificationPanel.vue'
 import SetupsPanel from '../components/dashboard/SetupsPanel.vue'
 import LatestBriefPanel from '../components/dashboard/LatestBriefPanel.vue'
+import { mdiRefresh } from '../constants/icons'
 
 const props = defineProps({
   api: { type: Object, required: true },
@@ -71,7 +72,9 @@ onMounted(loadDashboard)
   <section class="view-stack">
     <SectionHeader title="Visão Geral" subtitle="Radar técnico consolidado da sessão atual.">
       <template #actions>
-        <BaseButton size="sm" variant="ghost" :loading="loading" @click="loadDashboard">Atualizar</BaseButton>
+        <BaseButton size="sm" variant="ghost" :icon-path="mdiRefresh" :loading="loading" @click="loadDashboard">
+          Atualizar
+        </BaseButton>
       </template>
     </SectionHeader>
 

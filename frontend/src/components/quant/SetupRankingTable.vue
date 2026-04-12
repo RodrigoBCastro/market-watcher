@@ -23,7 +23,7 @@ function tone(value) {
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="items" row-key="setup_code">
+  <DataTable :columns="columns" :rows="items" row-key="setup_code" min-width="100%" wrap-cells>
     <template #cell-is_enabled="{ value }">
       <StatusBadge :label="value ? 'sim' : 'não'" :tone="tone(value)" />
     </template>

@@ -26,7 +26,7 @@ function resultTone(value) {
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="items" row-key="id" compact>
+  <DataTable :columns="columns" :rows="items" row-key="id" compact min-width="100%" wrap-cells>
     <template #cell-symbol="{ row }">
       <button class="inline-link" @click="emit('open-asset', row.symbol)">{{ row.symbol }}</button>
     </template>

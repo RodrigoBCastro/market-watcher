@@ -4,6 +4,7 @@ import BaseCard from '../ui/BaseCard.vue'
 import DataTable from '../ui/DataTable.vue'
 import StatusBadge from '../ui/StatusBadge.vue'
 import BaseButton from '../ui/BaseButton.vue'
+import { mdiOpenInNew } from '../../constants/icons'
 import { formatNumber } from '../../utils/format'
 
 const props = defineProps({
@@ -18,9 +19,6 @@ const rankedColumns = [
   { key: 'classification', label: 'Classificação' },
   { key: 'recommendation', label: 'Recomendação' },
   { key: 'setup_label', label: 'Setup' },
-  { key: 'entry', label: 'Entrada', align: 'right', format: (value) => formatNumber(value, 2) },
-  { key: 'stop', label: 'Stop', align: 'right', format: (value) => formatNumber(value, 2) },
-  { key: 'target', label: 'Alvo', align: 'right', format: (value) => formatNumber(value, 2) },
   { key: 'rr_ratio', label: 'R:R', align: 'right', format: (value) => formatNumber(value, 2) },
   { key: 'actions', label: 'Ações', align: 'right' },
 ]
@@ -60,7 +58,15 @@ const avoidList = computed(() => props.brief?.avoid_list || [])
 
       <section class="stacked-section">
         <h3>Ranking de Ideias</h3>
-        <DataTable :columns="rankedColumns" :rows="rankedIdeas" row-key="symbol" compact>
+        <DataTable
+          :columns="rankedColumns"
+          :rows="rankedIdeas"
+          row-key="symbol"
+          compact
+          min-width="100%"
+          wrap-cells
+          disable-scroll
+        >
           <template #cell-classification="{ value }">
             <StatusBadge :label="value || 'Sem classificação'" />
           </template>
@@ -68,14 +74,30 @@ const avoidList = computed(() => props.brief?.avoid_list || [])
             <StatusBadge :label="value || 'observar'" />
           </template>
           <template #cell-actions="{ row }">
-            <BaseButton size="sm" variant="ghost" @click="emit('open-asset', row.symbol)">Detalhes</BaseButton>
+            <BaseButton
+              size="sm"
+              variant="ghost"
+              :icon-path="mdiOpenInNew"
+              icon-only
+              :aria-label="`Abrir detalhes de ${row.symbol}`"
+              :title="`Abrir ${row.symbol}`"
+              @click="emit('open-asset', row.symbol)"
+            />
           </template>
         </DataTable>
       </section>
 
       <section class="stacked-section">
         <h3>Ativos Para Evitar</h3>
-        <DataTable :columns="avoidColumns" :rows="avoidList" row-key="symbol" compact>
+        <DataTable
+          :columns="avoidColumns"
+          :rows="avoidList"
+          row-key="symbol"
+          compact
+          min-width="100%"
+          wrap-cells
+          disable-scroll
+        >
           <template #cell-classification="{ value }">
             <StatusBadge :label="value || 'Evitar'" />
           </template>
@@ -83,7 +105,15 @@ const avoidList = computed(() => props.brief?.avoid_list || [])
             <StatusBadge :label="value || 'evitar'" />
           </template>
           <template #cell-actions="{ row }">
-            <BaseButton size="sm" variant="ghost" @click="emit('open-asset', row.symbol)">Detalhes</BaseButton>
+            <BaseButton
+              size="sm"
+              variant="ghost"
+              :icon-path="mdiOpenInNew"
+              icon-only
+              :aria-label="`Abrir detalhes de ${row.symbol}`"
+              :title="`Abrir ${row.symbol}`"
+              @click="emit('open-asset', row.symbol)"
+            />
           </template>
         </DataTable>
       </section>

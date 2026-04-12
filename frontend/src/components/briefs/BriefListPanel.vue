@@ -2,6 +2,7 @@
 import DataTable from '../ui/DataTable.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import StatusBadge from '../ui/StatusBadge.vue'
+import { mdiOpenInNew } from '../../constants/icons'
 
 const props = defineProps({
   items: { type: Array, default: () => [] },
@@ -19,7 +20,7 @@ const columns = [
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="items" row-key="brief_date">
+  <DataTable :columns="columns" :rows="items" row-key="brief_date" min-width="100%" wrap-cells>
     <template #cell-market_bias="{ value }">
       <StatusBadge :label="value || 'neutro'" />
     </template>
@@ -27,11 +28,13 @@ const columns = [
     <template #cell-actions="{ row }">
       <BaseButton
         size="sm"
+        :icon-path="mdiOpenInNew"
+        icon-only
         :variant="selectedDate === row.brief_date ? 'secondary' : 'ghost'"
+        :aria-label="`Abrir brief de ${row.brief_date}`"
+        :title="`Abrir ${row.brief_date}`"
         @click="emit('select', row.brief_date)"
-      >
-        Abrir
-      </BaseButton>
+      />
     </template>
   </DataTable>
 </template>

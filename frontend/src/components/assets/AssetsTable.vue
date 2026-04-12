@@ -2,6 +2,7 @@
 import DataTable from '../ui/DataTable.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import StatusBadge from '../ui/StatusBadge.vue'
+import { mdiDeleteOutline, mdiOpenInNew, mdiPencil, mdiSync } from '../../constants/icons'
 import { formatNumber } from '../../utils/format'
 
 const props = defineProps({
@@ -25,7 +26,7 @@ const columns = [
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="items" row-key="id">
+  <DataTable :columns="columns" :rows="items" row-key="id" min-width="100%" wrap-cells>
     <template #cell-sector="{ value }">
       <span>{{ value || '-' }}</span>
     </template>
@@ -52,17 +53,43 @@ const columns = [
 
     <template #cell-actions="{ row }">
       <div class="inline-actions">
-        <BaseButton size="sm" variant="ghost" @click="emit('open-asset', row.ticker)">Detalhes</BaseButton>
+        <BaseButton
+          size="sm"
+          variant="ghost"
+          :icon-path="mdiOpenInNew"
+          icon-only
+          :aria-label="`Abrir detalhes de ${row.ticker}`"
+          :title="`Detalhes ${row.ticker}`"
+          @click="emit('open-asset', row.ticker)"
+        />
         <BaseButton
           size="sm"
           variant="secondary"
+          :icon-path="mdiSync"
+          icon-only
+          :aria-label="`Sincronizar ${row.ticker}`"
+          :title="`Sincronizar ${row.ticker}`"
           :loading="loadingTicker === row.ticker"
           @click="emit('sync-asset', row.ticker)"
-        >
-          Sync
-        </BaseButton>
-        <BaseButton size="sm" variant="ghost" @click="emit('edit-asset', row)">Editar</BaseButton>
-        <BaseButton size="sm" variant="danger" @click="emit('remove-asset', row)">Remover</BaseButton>
+        />
+        <BaseButton
+          size="sm"
+          variant="ghost"
+          :icon-path="mdiPencil"
+          icon-only
+          :aria-label="`Editar ${row.ticker}`"
+          :title="`Editar ${row.ticker}`"
+          @click="emit('edit-asset', row)"
+        />
+        <BaseButton
+          size="sm"
+          variant="danger"
+          :icon-path="mdiDeleteOutline"
+          icon-only
+          :aria-label="`Remover ${row.ticker}`"
+          :title="`Remover ${row.ticker}`"
+          @click="emit('remove-asset', row)"
+        />
       </div>
     </template>
   </DataTable>

@@ -2,6 +2,7 @@
 import DataTable from '../ui/DataTable.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import StatusBadge from '../ui/StatusBadge.vue'
+import { mdiCheckCircleOutline, mdiCloseCircleOutline, mdiPublish } from '../../constants/icons'
 import { formatDate, formatNumber } from '../../utils/format'
 
 const props = defineProps({
@@ -37,7 +38,7 @@ function statusTone(value) {
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="items" row-key="id">
+  <DataTable :columns="columns" :rows="items" row-key="id" min-width="100%" wrap-cells>
     <template #cell-status="{ value }">
       <StatusBadge :label="value || '-'" :tone="statusTone(value)" />
     </template>
@@ -52,28 +53,34 @@ function statusTone(value) {
           v-if="row.status === 'draft'"
           size="sm"
           variant="secondary"
+          :icon-path="mdiCheckCircleOutline"
+          icon-only
+          :aria-label="`Aprovar call ${row.symbol}`"
+          :title="`Aprovar ${row.symbol}`"
           :loading="loadingAction === `approve:${row.id}`"
           @click="emit('approve', row)"
-        >
-          Aprovar
-        </BaseButton>
+        />
         <BaseButton
           v-if="row.status === 'draft'"
           size="sm"
           variant="danger"
+          :icon-path="mdiCloseCircleOutline"
+          icon-only
+          :aria-label="`Rejeitar call ${row.symbol}`"
+          :title="`Rejeitar ${row.symbol}`"
           :loading="loadingAction === `reject:${row.id}`"
           @click="emit('reject', row)"
-        >
-          Rejeitar
-        </BaseButton>
+        />
         <BaseButton
           v-if="row.status === 'approved'"
           size="sm"
+          :icon-path="mdiPublish"
+          icon-only
+          :aria-label="`Publicar call ${row.symbol}`"
+          :title="`Publicar ${row.symbol}`"
           :loading="loadingAction === `publish:${row.id}`"
           @click="emit('publish', row)"
-        >
-          Publicar
-        </BaseButton>
+        />
       </div>
     </template>
   </DataTable>

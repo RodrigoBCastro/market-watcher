@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppShell from './components/layout/AppShell.vue'
-import AppAlert from './components/ui/AppAlert.vue'
+import AppToastStack from './components/ui/AppToastStack.vue'
 import LoadingState from './components/ui/LoadingState.vue'
 import { useAuth } from './composables/useAuth'
 import LoginView from './views/LoginView.vue'
@@ -13,26 +13,34 @@ import OpportunitiesView from './views/OpportunitiesView.vue'
 import BriefsView from './views/BriefsView.vue'
 import CallsView from './views/CallsView.vue'
 import QuantView from './views/QuantView.vue'
+import {
+  mdiBullhornOutline,
+  mdiChartLine,
+  mdiFileDocumentOutline,
+  mdiFormatListBulletedSquare,
+  mdiTarget,
+  mdiViewDashboardOutline,
+} from './constants/icons'
 
 const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
 
 const navItems = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'DB' },
-  { key: 'assets', label: 'Watchlist', icon: 'WL' },
-  { key: 'opportunities', label: 'Oportunidades', icon: 'OP' },
-  { key: 'calls', label: 'Calls', icon: 'CL' },
-  { key: 'quant', label: 'Quant', icon: 'QT' },
-  { key: 'briefs', label: 'Briefs', icon: 'BR' },
+  { key: 'dashboard', label: 'Dashboard', iconPath: mdiViewDashboardOutline },
+  { key: 'assets', label: 'Watchlist', iconPath: mdiFormatListBulletedSquare },
+  { key: 'opportunities', label: 'Oportunidades', iconPath: mdiTarget },
+  { key: 'calls', label: 'Calls', iconPath: mdiBullhornOutline },
+  { key: 'quant', label: 'Quant', iconPath: mdiChartLine },
+  { key: 'briefs', label: 'Briefs', iconPath: mdiFileDocumentOutline },
 ]
 
 const bootstrapping = ref(true)
 const loginSubmitting = ref(false)
 
-const alertMessage = ref('')
-const alertTone = ref('info')
-let alertTimeout = null
+const toasts = ref([])
+const toastTimers = new Map()
+let toastSequence = 0
 
 const activeView = computed(() => {
   if (route.name === 'dashboard') return 'dashboard'
@@ -72,14 +80,27 @@ const shellSubtitle = computed(() => {
   return ''
 })
 
-function clearAlert() {
-  alertMessage.value = ''
-  alertTone.value = 'info'
-
-  if (alertTimeout !== null) {
-    clearTimeout(alertTimeout)
-    alertTimeout = null
+function dismissToast(id) {
+  if (!id) {
+    return
   }
+
+  const timer = toastTimers.get(id)
+  if (timer) {
+    clearTimeout(timer)
+    toastTimers.delete(id)
+  }
+
+  toasts.value = toasts.value.filter((item) => item.id !== id)
+}
+
+function clearToasts() {
+  for (const timer of toastTimers.values()) {
+    clearTimeout(timer)
+  }
+
+  toastTimers.clear()
+  toasts.value = []
 }
 
 function notify(payload) {
@@ -87,16 +108,17 @@ function notify(payload) {
     return
   }
 
-  alertTone.value = payload.tone || 'info'
-  alertMessage.value = payload.message
+  const id = `toast-${++toastSequence}`
+  const tone = payload.tone || 'info'
+  const duration = Number(payload.duration_ms || 5000)
 
-  if (alertTimeout !== null) {
-    clearTimeout(alertTimeout)
-  }
+  toasts.value = [...toasts.value, { id, tone, message: payload.message }]
 
-  alertTimeout = setTimeout(() => {
-    clearAlert()
-  }, 5000)
+  const timeout = setTimeout(() => {
+    dismissToast(id)
+  }, duration)
+
+  toastTimers.set(id, timeout)
 }
 
 function openAsset(ticker) {
@@ -164,7 +186,7 @@ async function handleLogin(credentials) {
 
 async function handleLogout() {
   await auth.logout()
-  clearAlert()
+  clearToasts()
   await router.replace({ name: 'login' })
 }
 
@@ -213,8 +235,6 @@ onMounted(bootstrapSession)
     @update:active-view="navigateTo"
     @logout="handleLogout"
   >
-    <AppAlert v-if="alertMessage" :tone="alertTone" :message="alertMessage" @close="clearAlert" />
-
     <DashboardView
       v-if="activeView === 'dashboard'"
       :api="auth.api"
@@ -265,4 +285,6 @@ onMounted(bootstrapSession)
       @notify="notify"
     />
   </AppShell>
+
+  <AppToastStack :items="toasts" @close="dismissToast" />
 </template>

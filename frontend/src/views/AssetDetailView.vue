@@ -6,6 +6,7 @@ import LoadingState from '../components/ui/LoadingState.vue'
 import AssetPricePanel from '../components/assets/AssetPricePanel.vue'
 import IndicatorSnapshotPanel from '../components/assets/IndicatorSnapshotPanel.vue'
 import AssetAnalysisPanel from '../components/assets/AssetAnalysisPanel.vue'
+import { mdiArrowLeft, mdiRefresh } from '../constants/icons'
 
 const props = defineProps({
   api: { type: Object, required: true },
@@ -71,8 +72,8 @@ onMounted(loadAssetDetails)
   <section class="view-stack">
     <SectionHeader :title="`Análise de ${ticker}`" subtitle="Leitura completa de preços, indicadores e decisão.">
       <template #actions>
-        <BaseButton size="sm" variant="ghost" @click="emit('back')">Voltar</BaseButton>
-        <BaseButton size="sm" :loading="loading" @click="loadAssetDetails">Recarregar</BaseButton>
+        <BaseButton size="sm" variant="ghost" :icon-path="mdiArrowLeft" @click="emit('back')">Voltar</BaseButton>
+        <BaseButton size="sm" :icon-path="mdiRefresh" :loading="loading" @click="loadAssetDetails">Recarregar</BaseButton>
       </template>
     </SectionHeader>
 

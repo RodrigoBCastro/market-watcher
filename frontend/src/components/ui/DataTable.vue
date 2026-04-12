@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import EmptyState from './EmptyState.vue'
 
 const props = defineProps({
@@ -6,6 +7,9 @@ const props = defineProps({
   rows: { type: Array, default: () => [] },
   rowKey: { type: String, default: '' },
   compact: { type: Boolean, default: false },
+  minWidth: { type: [String, Number], default: '' },
+  wrapCells: { type: Boolean, default: false },
+  disableScroll: { type: Boolean, default: false },
 })
 
 function formatValue(row, column) {
@@ -17,11 +21,28 @@ function formatValue(row, column) {
 
   return raw ?? '-'
 }
+
+const tableStyle = computed(() => {
+  if (props.minWidth === '' || props.minWidth === null) {
+    return {}
+  }
+
+  if (typeof props.minWidth === 'number') {
+    return { minWidth: `${props.minWidth}px` }
+  }
+
+  return { minWidth: props.minWidth }
+})
 </script>
 
 <template>
-  <div class="table-wrapper" :class="{ compact }">
-    <table v-if="rows.length > 0" class="data-table">
+  <div class="table-wrapper" :class="{ compact, 'no-scroll': disableScroll }">
+    <table
+      v-if="rows.length > 0"
+      class="data-table"
+      :class="{ 'wrap-cells': wrapCells }"
+      :style="tableStyle"
+    >
       <thead>
         <tr>
           <th v-for="col in columns" :key="col.key" :class="col.align ? `is-${col.align}` : ''">{{ col.label }}</th>

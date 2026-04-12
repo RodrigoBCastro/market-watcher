@@ -6,6 +6,7 @@ import BaseCard from '../components/ui/BaseCard.vue'
 import LoadingState from '../components/ui/LoadingState.vue'
 import BriefListPanel from '../components/briefs/BriefListPanel.vue'
 import BriefDetailPanel from '../components/briefs/BriefDetailPanel.vue'
+import { mdiFileDocumentEditOutline } from '../constants/icons'
 
 const props = defineProps({
   api: { type: Object, required: true },
@@ -90,7 +91,9 @@ onMounted(loadBriefs)
     <SectionHeader title="Briefs Diários" subtitle="Contexto macro e ranking operacional consolidado.">
       <template #actions>
         <input v-model="generateDate" class="date-input" type="date" aria-label="Data do brief" />
-        <BaseButton size="sm" :loading="generating" @click="generateBrief">Gerar Brief</BaseButton>
+        <BaseButton size="sm" :icon-path="mdiFileDocumentEditOutline" :loading="generating" @click="generateBrief">
+          Gerar Brief
+        </BaseButton>
       </template>
     </SectionHeader>
 

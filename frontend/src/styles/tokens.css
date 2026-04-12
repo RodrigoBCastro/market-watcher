@@ -1,0 +1,143 @@
+:root {
+  --font-sans: 'Space Grotesk', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  --shadow-sm: 0 10px 24px rgba(4, 8, 20, 0.35);
+  --shadow-md: 0 22px 48px rgba(3, 7, 18, 0.48);
+}
+
+:root,
+:root[data-theme='dark-blue'] {
+  --theme-id: dark-blue;
+
+  --color-bg-canvas: #060c1b;
+  --color-bg-canvas-alt: #071126;
+  --color-bg-surface: #0f1a36;
+  --color-bg-surface-alt: #122145;
+  --color-bg-elevated: #182b54;
+
+  --color-border-subtle: #244579;
+  --color-border-strong: #3a66a9;
+
+  --color-text-primary: #e8f0ff;
+  --color-text-secondary: #b6cbf0;
+  --color-text-tertiary: #9fb9e6;
+  --color-text-inverse: #f7fbff;
+
+  --color-accent: #4f86ff;
+  --color-accent-strong: #376ff0;
+  --color-accent-soft: #1a315f;
+  --color-accent-soft-2: #1f3d72;
+
+  --color-success: #24c98a;
+  --color-success-soft: #123828;
+  --color-warning: #f3be53;
+  --color-warning-soft: #3b2d10;
+  --color-danger: #ff6c84;
+  --color-danger-soft: #3c1622;
+  --color-info-soft: #162b53;
+
+  --bg-page: var(--color-bg-canvas);
+  --bg-overlay: rgba(8, 16, 36, 0.86);
+  --bg-card: var(--color-bg-surface);
+  --bg-soft: var(--color-bg-surface-alt);
+  --text-main: var(--color-text-primary);
+  --text-muted: var(--color-text-secondary);
+  --border: var(--color-border-subtle);
+  --border-strong: var(--color-border-strong);
+
+  --accent: var(--color-accent);
+  --accent-2: #6ca0ff;
+  --accent-soft: var(--color-accent-soft);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --danger-soft: var(--color-danger-soft);
+
+  --positive-soft: var(--color-success-soft);
+  --negative-soft: #401a24;
+  --warning-soft: var(--color-warning-soft);
+  --neutral-soft: var(--color-info-soft);
+
+  --body-gradient:
+    radial-gradient(circle at 14% 10%, rgba(82, 130, 255, 0.28), transparent 38%),
+    radial-gradient(circle at 84% 16%, rgba(31, 77, 185, 0.25), transparent 42%),
+    linear-gradient(170deg, var(--color-bg-canvas), var(--color-bg-canvas-alt) 52%, #050a16);
+
+  --login-gradient: linear-gradient(155deg, #1f4cb0, #2f6df0 55%, #4689ff);
+  --sidebar-gradient: linear-gradient(180deg, #0f1b3a, #0c1731 52%, #0a1428);
+
+  --button-primary-fg: var(--color-text-inverse);
+  --button-secondary-bg: #173262;
+  --button-secondary-fg: #cfe0ff;
+  --button-secondary-border: #315ea8;
+  --button-ghost-bg: #13264a;
+  --button-ghost-fg: #b8cefa;
+  --button-ghost-border: #2b4f8c;
+  --button-danger-fg: #ffd0d8;
+  --button-danger-border: #9f4f62;
+
+  --table-head-bg: #132854;
+  --table-row-alt-bg: rgba(20, 36, 71, 0.65);
+  --table-row-hover-bg: rgba(54, 95, 176, 0.25);
+
+  --chip-bg: #13264a;
+  --chip-border: #2d4f8d;
+
+  --sidebar-text: #bdd1f7;
+  --sidebar-brand: #f2f7ff;
+  --sidebar-icon: #88a9e8;
+  --sidebar-item-bg: rgba(255, 255, 255, 0.02);
+  --sidebar-item-border: rgba(146, 181, 239, 0.3);
+  --sidebar-item-hover: rgba(88, 135, 232, 0.2);
+  --sidebar-item-active: rgba(87, 136, 236, 0.34);
+
+  --topbar-bg: rgba(10, 20, 43, 0.88);
+
+  --form-input-bg: #101f3f;
+  --form-input-fg: var(--color-text-primary);
+  --form-input-border: #2e538f;
+
+  --inline-link: #8ab1ff;
+
+  --app-alert-success-bg: #103929;
+  --app-alert-success-fg: #86e7bb;
+  --app-alert-success-border: #2d8a65;
+  --app-alert-error-bg: #401723;
+  --app-alert-error-fg: #ffafbd;
+  --app-alert-error-border: #a84b63;
+  --app-alert-warning-bg: #3a2d10;
+  --app-alert-warning-fg: #ffd889;
+  --app-alert-warning-border: #9c7830;
+  --app-alert-info-bg: #172f58;
+  --app-alert-info-fg: #b9d4ff;
+  --app-alert-info-border: #3a66ac;
+
+  --sparkline-positive: #41d7a0;
+  --sparkline-negative: #ff7a92;
+
+  --status-positive-fg: #9af4cf;
+  --status-positive-border: #9ed5bd;
+  --status-negative-fg: #ffbeca;
+  --status-negative-border: #ecb7b3;
+  --status-warning-fg: #ffd889;
+  --status-warning-border: #ebca8d;
+  --status-neutral-fg: #c7dcff;
+  --status-neutral-border: #c8d4de;
+
+  --pill-positive-fg: #9ff4d1;
+  --pill-positive-border: #9cd4bb;
+  --pill-negative-fg: #ffc0cc;
+  --pill-negative-border: #ebb5b2;
+  --pill-warning-fg: #ffde95;
+  --pill-warning-border: #efc988;
+}

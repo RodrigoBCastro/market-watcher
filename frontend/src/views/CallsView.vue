@@ -7,6 +7,7 @@ import LoadingState from '../components/ui/LoadingState.vue'
 import CallPipelineActions from '../components/calls/CallPipelineActions.vue'
 import CallTable from '../components/calls/CallTable.vue'
 import CallOutcomeTable from '../components/calls/CallOutcomeTable.vue'
+import { mdiFilterOutline } from '../constants/icons'
 
 const props = defineProps({
   api: { type: Object, required: true },
@@ -151,7 +152,15 @@ onMounted(loadData)
           <option value="published">Published</option>
           <option value="rejected">Rejected</option>
         </select>
-        <BaseButton size="sm" variant="ghost" :loading="loading" @click="loadData">Filtrar</BaseButton>
+        <BaseButton
+          size="sm"
+          variant="ghost"
+          :icon-path="mdiFilterOutline"
+          :loading="loading"
+          @click="loadData"
+        >
+          Filtrar
+        </BaseButton>
       </template>
     </SectionHeader>
 

@@ -14,5 +14,13 @@ const columns = [
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="setups" row-key="setup_code" compact />
+  <DataTable
+    :columns="columns"
+    :rows="setups"
+    row-key="setup_code"
+    compact
+    min-width="100%"
+    wrap-cells
+    disable-scroll
+  />
 </template>

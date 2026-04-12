@@ -1,5 +1,6 @@
 <script setup>
 import BaseButton from '../ui/BaseButton.vue'
+import { mdiLogoutVariant } from '../../constants/icons'
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -22,7 +23,14 @@ const emit = defineEmits(['logout'])
         <span>{{ user.name }}</span>
         <small>{{ user.email }}</small>
       </div>
-      <BaseButton variant="ghost" size="sm" @click="emit('logout')">Sair</BaseButton>
+      <BaseButton
+        variant="ghost"
+        size="sm"
+        :icon-path="mdiLogoutVariant"
+        @click="emit('logout')"
+      >
+        Sair
+      </BaseButton>
     </div>
   </header>
 </template>
