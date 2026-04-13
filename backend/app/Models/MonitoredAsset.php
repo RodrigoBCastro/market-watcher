@@ -16,6 +16,21 @@ class MonitoredAsset extends Model
         'sector',
         'is_active',
         'monitoring_enabled',
+        'collect_data',
+        'eligible_for_analysis',
+        'eligible_for_calls',
+        'eligible_for_execution',
+        'universe_type',
+        'avg_daily_volume_20',
+        'avg_daily_financial_volume_20',
+        'avg_spread_percent',
+        'avg_trades_count_20',
+        'volatility_20',
+        'in_ibov',
+        'in_index_small_caps',
+        'liquidity_score',
+        'operability_score',
+        'last_universe_review_at',
         'metadata',
     ];
 
@@ -27,6 +42,20 @@ class MonitoredAsset extends Model
         return [
             'is_active' => 'boolean',
             'monitoring_enabled' => 'boolean',
+            'collect_data' => 'boolean',
+            'eligible_for_analysis' => 'boolean',
+            'eligible_for_calls' => 'boolean',
+            'eligible_for_execution' => 'boolean',
+            'avg_daily_volume_20' => 'float',
+            'avg_daily_financial_volume_20' => 'float',
+            'avg_spread_percent' => 'float',
+            'avg_trades_count_20' => 'float',
+            'volatility_20' => 'float',
+            'in_ibov' => 'boolean',
+            'in_index_small_caps' => 'boolean',
+            'liquidity_score' => 'float',
+            'operability_score' => 'float',
+            'last_universe_review_at' => 'datetime',
             'metadata' => 'array',
         ];
     }
@@ -74,5 +103,10 @@ class MonitoredAsset extends Model
     public function portfolioPositions(): HasMany
     {
         return $this->hasMany(PortfolioPosition::class);
+    }
+
+    public function universeMemberships(): HasMany
+    {
+        return $this->hasMany(MarketUniverseMembership::class);
     }
 }

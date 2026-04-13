@@ -49,6 +49,9 @@ class TradeCallService implements TradeCallServiceInterface
             ->with('monitoredAsset:id,ticker')
             ->whereDate('trade_date', $tradeDate->toDateString())
             ->where('final_score', '>=', $minScore)
+            ->whereHas('monitoredAsset', static function ($query): void {
+                $query->where('eligible_for_calls', true)->where('is_active', true);
+            })
             ->orderByDesc('final_score')
             ->get();
 

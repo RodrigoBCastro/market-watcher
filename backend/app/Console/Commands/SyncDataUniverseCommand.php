@@ -7,11 +7,11 @@ namespace App\Console\Commands;
 use App\Jobs\SyncDataUniverseJob;
 use Illuminate\Console\Command;
 
-class SyncAssetsCommand extends Command
+class SyncDataUniverseCommand extends Command
 {
-    protected $signature = 'market:sync-assets {ticker? : Ticker opcional para sync pontual} {--now : Executa imediatamente sem fila}';
+    protected $signature = 'market:sync-data-universe {ticker? : Ticker opcional para sync pontual} {--now : Executa imediatamente sem fila}';
 
-    protected $description = 'Sincroniza cotações do Data Universe';
+    protected $description = 'Sincroniza histórico de preços do Data Universe';
 
     public function handle(): int
     {
@@ -31,3 +31,4 @@ class SyncAssetsCommand extends Command
         return self::SUCCESS;
     }
 }
+

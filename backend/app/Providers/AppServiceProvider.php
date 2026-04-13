@@ -8,6 +8,7 @@ use App\Contracts\ConfidenceScoreServiceInterface;
 use App\Contracts\CorrelationAnalysisServiceInterface;
 use App\Contracts\DailyBriefGeneratorInterface;
 use App\Contracts\IndicatorCalculatorInterface;
+use App\Contracts\MarketUniverseServiceInterface;
 use App\Contracts\MarketDataProviderInterface;
 use App\Contracts\MarketRegimeServiceInterface;
 use App\Contracts\ProbabilisticEngineInterface;
@@ -37,6 +38,7 @@ use App\Services\Scoring\CompositeScoreEngine;
 use App\Services\Trading\ConfidenceScoreService;
 use App\Services\Trading\CorrelationAnalysisService;
 use App\Services\Trading\MarketRegimeService;
+use App\Services\Trading\MarketUniverseService;
 use App\Services\Trading\PerformanceAnalyticsService;
 use App\Services\Trading\PortfolioRiskService;
 use App\Services\Trading\PortfolioService;
@@ -55,6 +57,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(MarketDataProviderInterface::class, BrapiProvider::class);
         $this->app->bind(IndicatorCalculatorInterface::class, IndicatorPipeline::class);
+        $this->app->bind(MarketUniverseServiceInterface::class, MarketUniverseService::class);
         $this->app->bind(SetupDetectorInterface::class, SetupDetectionService::class);
         $this->app->bind(ScoreEngineInterface::class, CompositeScoreEngine::class);
         $this->app->bind(TradeDecisionEngineInterface::class, TradeDecisionEngine::class);

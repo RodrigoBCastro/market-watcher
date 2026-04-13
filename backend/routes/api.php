@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\QuantController;
 use App\Http\Controllers\Api\RiskSettingsController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\TradeCallController;
+use App\Http\Controllers\Api\UniverseController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -37,11 +38,21 @@ Route::middleware('api.token')->group(function (): void {
         ->where('ticker', '[A-Za-z0-9\^=\.\-]+');
     Route::get('/assets/{ticker}/analysis', [AssetAnalysisController::class, 'analysis'])
         ->where('ticker', '[A-Za-z0-9\^=\.\-]+');
+    Route::get('/assets/{ticker}/universe-status', [UniverseController::class, 'assetStatus'])
+        ->where('ticker', '[A-Za-z0-9\^=\.\-]+');
 
     Route::get('/assets', [AssetController::class, 'index']);
     Route::post('/assets', [AssetController::class, 'store']);
+    Route::patch('/assets/{id}/universe-membership', [UniverseController::class, 'updateAssetMembership'])->whereNumber('id');
     Route::patch('/assets/{id}', [AssetController::class, 'update'])->whereNumber('id');
     Route::delete('/assets/{id}', [AssetController::class, 'destroy'])->whereNumber('id');
+
+    Route::get('/universes/summary', [UniverseController::class, 'summary']);
+    Route::get('/universes/data', [UniverseController::class, 'data']);
+    Route::get('/universes/eligible', [UniverseController::class, 'eligible']);
+    Route::get('/universes/trading', [UniverseController::class, 'trading']);
+    Route::post('/universes/recalculate-eligible', [UniverseController::class, 'recalculateEligible']);
+    Route::post('/universes/recalculate-trading', [UniverseController::class, 'recalculateTrading']);
 
     Route::post('/sync/assets/{ticker}', [SyncController::class, 'syncAsset'])
         ->where('ticker', '[A-Za-z0-9\^=\.\-]+');

@@ -7,6 +7,7 @@ namespace App\Services\Trading;
 use App\Contracts\PerformanceAnalyticsServiceInterface;
 use App\Contracts\PortfolioRiskServiceInterface;
 use App\Contracts\PortfolioServiceInterface;
+use App\Contracts\MarketUniverseServiceInterface;
 use App\Contracts\TradingAlertServiceInterface;
 use App\Models\TradeCall;
 use App\Models\TradingAlert;
@@ -17,6 +18,7 @@ class TradingDashboardService
         private readonly PortfolioServiceInterface $portfolioService,
         private readonly PortfolioRiskServiceInterface $portfolioRiskService,
         private readonly PerformanceAnalyticsServiceInterface $performanceAnalyticsService,
+        private readonly MarketUniverseServiceInterface $marketUniverseService,
         private readonly TradingAlertServiceInterface $tradingAlertService,
     ) {
     }
@@ -60,6 +62,7 @@ class TradingDashboardService
 
         $alerts = $this->tradingAlertService->listForUser($userId, onlyUnread: false, limit: 8);
         $alertsUnread = TradingAlert::query()->where('user_id', $userId)->where('is_read', false)->count();
+        $universes = $this->marketUniverseService->summary();
 
         $pnlOpen = array_sum(array_map(static fn (array $item): float => (float) ($item['unrealized_pnl'] ?? 0.0), $openPositions));
 
@@ -97,6 +100,7 @@ class TradingDashboardService
                 'unread_count' => $alertsUnread,
                 'latest' => $alerts,
             ],
+            'universes' => $universes,
         ];
     }
 }

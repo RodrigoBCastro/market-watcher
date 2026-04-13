@@ -40,6 +40,10 @@ const routes = [
     name: 'assets',
   },
   {
+    path: '/universes',
+    name: 'universes',
+  },
+  {
     path: '/assets/:ticker',
     name: 'asset-detail',
   },

@@ -52,6 +52,17 @@ export function createMarketApi(getToken) {
     createAsset: (payload) => http.post('/assets', payload),
     updateAsset: (id, payload) => http.patch(`/assets/${id}`, payload),
     deleteAsset: (id) => http.delete(`/assets/${id}`),
+    updateAssetUniverseMembership: (id, payload) => http.patch(`/assets/${id}/universe-membership`, payload),
+    getAssetUniverseStatus: (ticker) => http.get(`/assets/${encodeURIComponent(ticker)}/universe-status`),
+
+    getUniverseSummary: () => http.get('/universes/summary'),
+    getUniverseData: (limit = 200) => http.get(`/universes/data?limit=${limit}`),
+    getUniverseEligible: (limit = 200) => http.get(`/universes/eligible?limit=${limit}`),
+    getUniverseTrading: (limit = 200) => http.get(`/universes/trading?limit=${limit}`),
+    recalculateEligibleUniverse: (sync = false) =>
+      http.post(sync ? '/universes/recalculate-eligible?sync=1' : '/universes/recalculate-eligible', {}),
+    recalculateTradingUniverse: (sync = false) =>
+      http.post(sync ? '/universes/recalculate-trading?sync=1' : '/universes/recalculate-trading', {}),
 
     syncAsset: (ticker) => http.post(`/sync/assets/${encodeURIComponent(ticker)}`, {}),
     syncAssets: () => http.post('/sync/assets', {}),

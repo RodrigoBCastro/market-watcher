@@ -1,6 +1,6 @@
 # MarketWatcher Backend (Laravel)
 
-Backend da plataforma MarketWatcher para análise técnica, geração de calls e gestão completa de trading (V3).
+Backend da plataforma MarketWatcher para análise técnica, geração de calls e gestão completa de trading (V4).
 
 ## Stack
 
@@ -37,6 +37,16 @@ Backend da plataforma MarketWatcher para análise técnica, geração de calls e
 - Alertas inteligentes (`trading_alerts`)
 - Dashboard unificado de gestão
 
+## Camada V4 de Universos de Mercado
+
+- Data Universe (coleta ampla de dados)
+- Eligible Universe (ativos aptos para análise operacional)
+- Trading Universe (ativos priorizados para calls e execução)
+- Metadados de liquidez/operabilidade por ativo
+- Promoção e rebaixamento auditáveis com trilha de eventos
+- Watchlists lógicas: `full_market`, `extended`, `core`
+- Jobs dedicados para sync amplo e recálculo de universos
+
 ## Principais Tabelas
 
 Além das tabelas base do sistema:
@@ -49,6 +59,8 @@ Além das tabelas base do sistema:
 - `equity_curve_points`
 - `trading_alerts`
 - `trade_calls` (com campos de confiança/regime)
+- `market_universe_memberships`
+- `market_universe_events`
 
 ## Configuração (.env)
 
@@ -103,6 +115,22 @@ CORRELATION_HIGH_THRESHOLD=0.75
 ALERT_NEAR_STOP_THRESHOLD_PERCENT=1.5
 ALERT_NEAR_TARGET_THRESHOLD_PERCENT=2
 ALERT_CONFIDENCE_DROP_THRESHOLD=12
+
+UNIVERSE_ELIGIBLE_MIN_HISTORY_DAYS=90
+UNIVERSE_ELIGIBLE_MIN_AVG_DAILY_VOLUME=350000
+UNIVERSE_ELIGIBLE_MIN_AVG_DAILY_FINANCIAL_VOLUME=12000000
+UNIVERSE_ELIGIBLE_MIN_AVG_TRADES_COUNT=300000
+UNIVERSE_ELIGIBLE_MAX_AVG_SPREAD_PERCENT=3
+UNIVERSE_ELIGIBLE_MIN_VOLATILITY_20=1.1
+UNIVERSE_ELIGIBLE_MAX_VOLATILITY_20=8.5
+UNIVERSE_ELIGIBLE_MIN_OPERABILITY_SCORE=55
+
+UNIVERSE_TRADING_TARGET_SIZE=35
+UNIVERSE_TRADING_MIN_PRIORITY_SCORE=58
+UNIVERSE_TRADING_WEIGHT_LIQUIDITY=0.35
+UNIVERSE_TRADING_WEIGHT_OPERABILITY=0.35
+UNIVERSE_TRADING_WEIGHT_RECENT_SCORE=0.20
+UNIVERSE_TRADING_WEIGHT_INDEX_BONUS=0.10
 ```
 
 ## Execução
@@ -169,6 +197,17 @@ Authorization: Bearer <token>
 - `GET /api/alerts`
 - `POST /api/alerts/{id}/read`
 
+### Universos de mercado
+
+- `GET /api/universes/summary`
+- `GET /api/universes/data`
+- `GET /api/universes/eligible`
+- `GET /api/universes/trading`
+- `POST /api/universes/recalculate-eligible`
+- `POST /api/universes/recalculate-trading`
+- `PATCH /api/assets/{id}/universe-membership`
+- `GET /api/assets/{ticker}/universe-status`
+
 ## Commands de Gestão V3
 
 ```bash
@@ -176,6 +215,9 @@ php artisan market:portfolio-mark-to-market --now
 php artisan market:refresh-alerts --now
 php artisan market:snapshot-equity --now
 php artisan market:trading-pipeline --now
+php artisan market:sync-data-universe --now
+php artisan market:recalculate-eligible-universe --now
+php artisan market:recalculate-trading-universe --now
 ```
 
 Sem `--now`, a execução vai para fila.
@@ -184,6 +226,9 @@ Sem `--now`, a execução vai para fila.
 
 Jobs recorrentes de V3 em `routes/console.php`:
 
+- `market:sync-data-universe`
+- `market:recalculate-eligible-universe`
+- `market:recalculate-trading-universe`
 - `market:portfolio-mark-to-market`
 - `market:refresh-alerts`
 - `market:snapshot-equity`

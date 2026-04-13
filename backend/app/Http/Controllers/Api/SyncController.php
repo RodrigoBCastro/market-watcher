@@ -6,9 +6,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\GenerateDailyBriefJob;
+use App\Jobs\RecalculateEligibleUniverseJob;
 use App\Jobs\RecalculateIndicatorsJob;
 use App\Jobs\RecalculateScoresJob;
-use App\Jobs\SyncAssetQuotesJob;
+use App\Jobs\RecalculateTradingUniverseJob;
+use App\Jobs\SyncDataUniverseJob;
 use App\Jobs\SyncMarketContextJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Bus;
@@ -17,7 +19,7 @@ class SyncController extends Controller
 {
     public function syncAsset(string $ticker): JsonResponse
     {
-        SyncAssetQuotesJob::dispatch($ticker);
+        SyncDataUniverseJob::dispatch($ticker);
 
         return response()->json([
             'message' => "Sincronização de {$ticker} enfileirada.",
@@ -26,10 +28,10 @@ class SyncController extends Controller
 
     public function syncAssets(): JsonResponse
     {
-        SyncAssetQuotesJob::dispatch();
+        SyncDataUniverseJob::dispatch();
 
         return response()->json([
-            'message' => 'Sincronização de todos os ativos enfileirada.',
+            'message' => 'Sincronização do Data Universe enfileirada.',
         ], 202);
     }
 
@@ -45,7 +47,9 @@ class SyncController extends Controller
     public function syncFull(): JsonResponse
     {
         Bus::chain([
-            new SyncAssetQuotesJob(),
+            new SyncDataUniverseJob(),
+            new RecalculateEligibleUniverseJob(),
+            new RecalculateTradingUniverseJob(),
             new SyncMarketContextJob(),
             new RecalculateIndicatorsJob(),
             new RecalculateScoresJob(),

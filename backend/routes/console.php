@@ -8,7 +8,9 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('market:sync-assets')->weekdays()->at('19:05');
+Schedule::command('market:sync-data-universe')->weekdays()->at('19:00');
+Schedule::command('market:recalculate-eligible-universe')->weekdays()->at('19:05');
+Schedule::command('market:recalculate-trading-universe')->weekdays()->at('19:08');
 Schedule::command('market:sync-context')->weekdays()->at('19:10');
 Schedule::command('market:recalculate-indicators')->weekdays()->at('19:20');
 Schedule::command('market:recalculate-scores')->weekdays()->at('19:35');

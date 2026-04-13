@@ -6,6 +6,28 @@ return [
     'sync' => [
         'asset_days' => (int) env('MARKET_SYNC_ASSET_DAYS', 90),
     ],
+    'universes' => [
+        'eligible' => [
+            'min_history_days' => (int) env('UNIVERSE_ELIGIBLE_MIN_HISTORY_DAYS', 90),
+            'min_avg_daily_volume' => (float) env('UNIVERSE_ELIGIBLE_MIN_AVG_DAILY_VOLUME', 350000),
+            'min_avg_daily_financial_volume' => (float) env('UNIVERSE_ELIGIBLE_MIN_AVG_DAILY_FINANCIAL_VOLUME', 12000000),
+            'min_avg_trades_count' => (float) env('UNIVERSE_ELIGIBLE_MIN_AVG_TRADES_COUNT', 300000),
+            'max_avg_spread_percent' => (float) env('UNIVERSE_ELIGIBLE_MAX_AVG_SPREAD_PERCENT', 3.0),
+            'min_volatility_20' => (float) env('UNIVERSE_ELIGIBLE_MIN_VOLATILITY_20', 1.1),
+            'max_volatility_20' => (float) env('UNIVERSE_ELIGIBLE_MAX_VOLATILITY_20', 8.5),
+            'min_operability_score' => (float) env('UNIVERSE_ELIGIBLE_MIN_OPERABILITY_SCORE', 55.0),
+        ],
+        'trading' => [
+            'target_size' => (int) env('UNIVERSE_TRADING_TARGET_SIZE', 35),
+            'min_priority_score' => (float) env('UNIVERSE_TRADING_MIN_PRIORITY_SCORE', 58.0),
+            'weights' => [
+                'liquidity' => (float) env('UNIVERSE_TRADING_WEIGHT_LIQUIDITY', 0.35),
+                'operability' => (float) env('UNIVERSE_TRADING_WEIGHT_OPERABILITY', 0.35),
+                'recent_technical_score' => (float) env('UNIVERSE_TRADING_WEIGHT_RECENT_SCORE', 0.20),
+                'index_relevance_bonus' => (float) env('UNIVERSE_TRADING_WEIGHT_INDEX_BONUS', 0.10),
+            ],
+        ],
+    ],
     'auth' => [
         'token_ttl_days' => (int) env('API_TOKEN_TTL_DAYS', 30),
     ],

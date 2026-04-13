@@ -10,6 +10,7 @@ import DashboardCallsIdeasPanel from '../components/trading/dashboard/DashboardC
 import DashboardRiskExposurePanel from '../components/trading/dashboard/DashboardRiskExposurePanel.vue'
 import DashboardPerformancePanel from '../components/trading/dashboard/DashboardPerformancePanel.vue'
 import DashboardAlertsPanel from '../components/trading/dashboard/DashboardAlertsPanel.vue'
+import DashboardUniversesPanel from '../components/trading/dashboard/DashboardUniversesPanel.vue'
 import { mdiRefresh } from '../constants/icons'
 
 const props = defineProps({
@@ -27,6 +28,7 @@ const dashboard = ref({
   risk_exposure: {},
   performance: {},
   alerts: {},
+  universes: {},
 })
 
 async function loadDashboard() {
@@ -103,6 +105,14 @@ onMounted(loadDashboard)
               <p class="muted">Eventos críticos recentes para tomada de decisão.</p>
             </div>
             <DashboardAlertsPanel :alerts="dashboard.alerts" @open-alerts="emit('open-alerts')" />
+          </BaseCard>
+
+          <BaseCard>
+            <div class="panel-heading">
+              <h3>Universos de Mercado</h3>
+              <p class="muted">Cobertura ampla, elegibilidade e foco operacional.</p>
+            </div>
+            <DashboardUniversesPanel :universes="dashboard.universes" />
           </BaseCard>
         </div>
       </div>

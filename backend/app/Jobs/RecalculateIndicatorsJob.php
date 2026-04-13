@@ -33,7 +33,7 @@ class RecalculateIndicatorsJob implements ShouldQueue
 
         $assets = MonitoredAsset::query()
             ->where('is_active', true)
-            ->where('monitoring_enabled', true)
+            ->where('eligible_for_analysis', true)
             ->when($this->ticker !== null, static function ($query, string $ticker): void {
                 $query->where('ticker', strtoupper($ticker));
             })

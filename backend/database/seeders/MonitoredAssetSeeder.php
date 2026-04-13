@@ -42,6 +42,13 @@ class MonitoredAssetSeeder extends Seeder
                 'sector' => $asset['sector'],
                 'is_active' => true,
                 'monitoring_enabled' => true,
+                'collect_data' => true,
+                'eligible_for_analysis' => false,
+                'eligible_for_calls' => false,
+                'eligible_for_execution' => false,
+                'universe_type' => 'data_universe',
+                'in_ibov' => false,
+                'in_index_small_caps' => null,
                 'metadata' => ['seeded' => true],
             ]);
         }

@@ -16,6 +16,7 @@ const columns = [
   { key: 'ticker', label: 'Ticker' },
   { key: 'name', label: 'Nome' },
   { key: 'sector', label: 'Setor' },
+  { key: 'universe_type', label: 'Universo' },
   { key: 'is_active', label: 'Ativo', align: 'center' },
   { key: 'monitoring_enabled', label: 'Monitoramento', align: 'center' },
   { key: 'latest_score', label: 'Score', align: 'right', format: (value) => formatNumber(value, 2) },
@@ -29,6 +30,10 @@ const columns = [
   <DataTable :columns="columns" :rows="items" row-key="id" min-width="100%" wrap-cells>
     <template #cell-sector="{ value }">
       <span>{{ value || '-' }}</span>
+    </template>
+
+    <template #cell-universe_type="{ value }">
+      <span>{{ value || 'data_universe' }}</span>
     </template>
 
     <template #cell-is_active="{ value }">
