@@ -2,31 +2,31 @@
 import { onMounted, ref } from 'vue'
 import SectionHeader from '../components/ui/SectionHeader.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
-import LoadingState from '../components/ui/LoadingState.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
-import SyncActions from '../components/market/SyncActions.vue'
-import MarketCards from '../components/dashboard/MarketCards.vue'
-import WatchlistPanel from '../components/dashboard/WatchlistPanel.vue'
-import ClassificationPanel from '../components/dashboard/ClassificationPanel.vue'
-import SetupsPanel from '../components/dashboard/SetupsPanel.vue'
-import LatestBriefPanel from '../components/dashboard/LatestBriefPanel.vue'
+import LoadingState from '../components/ui/LoadingState.vue'
+import DashboardSummaryCards from '../components/trading/dashboard/DashboardSummaryCards.vue'
+import DashboardOpenPositionsTable from '../components/trading/dashboard/DashboardOpenPositionsTable.vue'
+import DashboardCallsIdeasPanel from '../components/trading/dashboard/DashboardCallsIdeasPanel.vue'
+import DashboardRiskExposurePanel from '../components/trading/dashboard/DashboardRiskExposurePanel.vue'
+import DashboardPerformancePanel from '../components/trading/dashboard/DashboardPerformancePanel.vue'
+import DashboardAlertsPanel from '../components/trading/dashboard/DashboardAlertsPanel.vue'
 import { mdiRefresh } from '../constants/icons'
 
 const props = defineProps({
   api: { type: Object, required: true },
 })
 
-const emit = defineEmits(['open-asset', 'open-briefs', 'notify'])
+const emit = defineEmits(['open-asset', 'open-alerts', 'notify'])
 
 const loading = ref(true)
-const syncAction = ref('')
 const error = ref('')
 const dashboard = ref({
-  market_cards: {},
-  watchlist: [],
-  classifications: {},
-  setups: [],
-  brief: null,
+  summary: {},
+  positions_open: [],
+  calls_ideas: {},
+  risk_exposure: {},
+  performance: {},
+  alerts: {},
 })
 
 async function loadDashboard() {
@@ -36,32 +36,9 @@ async function loadDashboard() {
   try {
     dashboard.value = await props.api.getDashboard()
   } catch (requestError) {
-    error.value = requestError?.message || 'Falha ao carregar o dashboard.'
+    error.value = requestError?.message || 'Falha ao carregar o dashboard de gestão.'
   } finally {
     loading.value = false
-  }
-}
-
-async function runSync(action) {
-  syncAction.value = action
-
-  try {
-    if (action === 'assets') await props.api.syncAssets()
-    if (action === 'market') await props.api.syncMarket()
-    if (action === 'full') await props.api.syncFull()
-
-    emit('notify', {
-      tone: 'success',
-      message: 'Sincronização enfileirada com sucesso.',
-    })
-  } catch (requestError) {
-    emit('notify', {
-      tone: 'error',
-      message: requestError?.message || 'Não foi possível enfileirar sincronização.',
-    })
-  } finally {
-    syncAction.value = ''
-    await loadDashboard()
   }
 }
 
@@ -70,7 +47,7 @@ onMounted(loadDashboard)
 
 <template>
   <section class="view-stack">
-    <SectionHeader title="Visão Geral" subtitle="Radar técnico consolidado da sessão atual.">
+    <SectionHeader title="Gestão de Trading" subtitle="Carteira, risco, ideias operacionais, performance e alertas em uma única visão.">
       <template #actions>
         <BaseButton size="sm" variant="ghost" :icon-path="mdiRefresh" :loading="loading" @click="loadDashboard">
           Atualizar
@@ -78,39 +55,55 @@ onMounted(loadDashboard)
       </template>
     </SectionHeader>
 
-    <SyncActions
-      :loading-action="syncAction"
-      @sync-assets="runSync('assets')"
-      @sync-market="runSync('market')"
-      @sync-full="runSync('full')"
-    />
-
     <LoadingState v-if="loading" />
     <p v-else-if="error" class="form-error">{{ error }}</p>
 
     <template v-else>
-      <MarketCards :market-cards="dashboard.market_cards" />
+      <DashboardSummaryCards :summary="dashboard.summary" />
 
       <div class="dashboard-grid">
         <BaseCard>
           <div class="panel-heading">
-            <h3>Watchlist com Score</h3>
-            <p class="muted">Ativos ordenados por score final mais recente.</p>
+            <h3>Posições Abertas</h3>
+            <p class="muted">Preço atual, PnL, stop, alvo e convicção operacional.</p>
           </div>
-          <WatchlistPanel :items="dashboard.watchlist" @open-asset="emit('open-asset', $event)" />
+          <DashboardOpenPositionsTable :items="dashboard.positions_open || []" @open-asset="emit('open-asset', $event)" />
+        </BaseCard>
+
+        <BaseCard>
+          <div class="panel-heading">
+            <h3>Calls e Ideias</h3>
+            <p class="muted">Pipeline de calls e ranking de prioridade.</p>
+          </div>
+          <DashboardCallsIdeasPanel :calls-ideas="dashboard.calls_ideas" @open-asset="emit('open-asset', $event)" />
+        </BaseCard>
+      </div>
+
+      <div class="dashboard-grid">
+        <BaseCard>
+          <div class="panel-heading">
+            <h3>Risco e Exposição</h3>
+            <p class="muted">Concentração por setor/ativo e correlação entre posições.</p>
+          </div>
+          <DashboardRiskExposurePanel :risk-exposure="dashboard.risk_exposure" />
         </BaseCard>
 
         <div class="dashboard-side">
-          <ClassificationPanel :counts="dashboard.classifications" />
-
           <BaseCard>
-            <div class="mini-panel">
-              <h3>Setups Detectados</h3>
-              <SetupsPanel :setups="dashboard.setups" />
+            <div class="panel-heading">
+              <h3>Performance</h3>
+              <p class="muted">KPIs principais e últimos pontos da curva de capital.</p>
             </div>
+            <DashboardPerformancePanel :performance="dashboard.performance" />
           </BaseCard>
 
-          <LatestBriefPanel :brief="dashboard.brief" @open-briefs="emit('open-briefs')" />
+          <BaseCard>
+            <div class="panel-heading">
+              <h3>Alertas Inteligentes</h3>
+              <p class="muted">Eventos críticos recentes para tomada de decisão.</p>
+            </div>
+            <DashboardAlertsPanel :alerts="dashboard.alerts" @open-alerts="emit('open-alerts')" />
+          </BaseCard>
         </div>
       </div>
     </template>

@@ -1,77 +1,56 @@
-# MarketWatcher Backend
+# MarketWatcher Backend (Laravel)
 
-Backend Laravel 13 para análise técnica de swing trade na B3, com ingestão de dados de mercado, cálculo local de indicadores, motor de decisão (score 0-100), geração de brief diário e API REST.
+Backend da plataforma MarketWatcher para análise técnica, geração de calls e gestão completa de trading (V3).
 
 ## Stack
 
 - PHP 8.3+
 - Laravel 13
-- PostgreSQL (preferencial)
+- PostgreSQL (recomendado)
 - Queue + Scheduler
-- HTTP Client (Brapi/HG Brasil)
+- Providers de mercado (Brapi/HG Brasil)
 
-## Módulos Implementados Nesta Base
-
-- Arquitetura por contratos (`app/Contracts`) e DTOs (`app/DTOs`)
-- Providers de mercado (`BrapiProvider`, `HgBrasilProvider`)
-- Pipeline de indicadores:
-  - SMA, EMA, RSI, MACD, ATR, Bollinger, ADX, Estocástico, ROC
-  - métricas de volume/estrutura/volatilidade
-- Motor de decisão:
-  - detecção de setups obrigatórios
-  - scoring por dimensão
-  - regras de veto (stop, alvo, RR, ativo esticado)
-- Módulo de Calls (v2):
-  - geração de calls em `draft` via motor
-  - fila de aprovação/rejeição/publicação
-  - avaliação de calls abertas e registro de outcomes
-  - métricas probabilísticas por setup (winrate/expectancy/edge)
-  - filtros por edge e histórico mínimo
-- Quant (v2):
-  - dashboard quantitativo
-  - backtest engine com persistência de resultados
-  - score optimizer para pesos de ranking técnico x expectancy
-  - estrutura preparada para execução futura (`OrderExecutionService`)
-- Jobs e commands operacionais
-- Endpoints REST de auth, watchlist, sync, análise, oportunidades, briefs e dashboard
-- Seeders básicos (admin, watchlist inicial, macro snapshot)
-
-## Estrutura Principal
+## Arquitetura
 
 - `app/Contracts`: interfaces do domínio
-- `app/DTOs`: contratos de transferência
-- `app/Services/Indicators`: cálculo técnico local
-- `app/Services/Scoring`: score por dimensão + composição final
-- `app/Services/Analysis`: setups + decisão de trade
-- `app/Services/Briefing`: geração do brief diário
-- `app/Jobs`: sync, recálculo e brief
-- `app/Console/Commands`: execução manual de pipeline
+- `app/DTOs`: contratos de saída/entrada de serviços
+- `app/Services/*`: regra de negócio desacoplada de controller
 - `app/Http/Controllers/Api`: controllers finos
+- `app/Jobs` + `app/Console/Commands`: execução assíncrona e operacional
 
-## Migrations/Tabelas
+## Módulos V3
 
-Além das tabelas padrão do Laravel, foram adicionadas:
+- Position sizing com validação de risco e capital disponível
+- Configuração de risco por usuário (`risk_settings`)
+- Portfólio real (`portfolio_positions`) com eventos operacionais
+- Marcação a mercado e derivados de PnL/risco/duração
+- Fechamentos parciais e totais (`portfolio_closed_positions`)
+- Risco global da carteira e bloqueios por regra
+- Exposição por setor e ativo (`asset_sector_mappings`)
+- Correlação aproximada por retornos diários
+- Regime de mercado (`bull`, `neutral`, `correction`, `bear`, `high_volatility`)
+- Ajuste de filtros por regime
+- Confidence score operacional das calls
+- Simulação de portfólio
+- Curva de capital (`equity_curve_points`)
+- Métricas de performance real
+- Alertas inteligentes (`trading_alerts`)
+- Dashboard unificado de gestão
 
-- `user_api_tokens`
-- `monitored_assets`
-- `asset_quotes`
-- `market_indexes`
-- `macro_snapshots`
-- `technical_indicators`
-- `asset_analysis_scores`
-- `generated_briefs`
-- `generated_brief_items`
-- `sync_runs`
-- `sync_run_logs`
-- `trade_calls`
-- `call_reviews`
-- `trade_outcomes`
-- `setup_metrics`
-- `backtest_results`
+## Principais Tabelas
 
-## Configuração
+Além das tabelas base do sistema:
 
-Adicione no `.env`:
+- `risk_settings`
+- `asset_sector_mappings`
+- `portfolio_positions`
+- `portfolio_position_events`
+- `portfolio_closed_positions`
+- `equity_curve_points`
+- `trading_alerts`
+- `trade_calls` (com campos de confiança/regime)
+
+## Configuração (.env)
 
 ```env
 BRAPI_TOKEN=
@@ -84,7 +63,7 @@ HG_BRASIL_BASE_URL=https://api.hgbrasil.com
 HG_BRASIL_TIMEOUT=10
 HG_BRASIL_RETRIES=2
 
-MARKET_SYNC_ASSET_DAYS=320
+MARKET_SYNC_ASSET_DAYS=90
 API_TOKEN_TTL_DAYS=30
 
 CALLS_MAX_PER_CYCLE=8
@@ -97,6 +76,33 @@ RANKING_TECHNICAL_WEIGHT=0.6
 RANKING_EXPECTANCY_WEIGHT=0.4
 OPTIMIZER_MIN_RANK=55
 QUANT_ALERT_DRAWDOWN_THRESHOLD=8
+
+RISK_DEFAULT_TOTAL_CAPITAL=10000
+RISK_DEFAULT_RISK_PER_TRADE_PERCENT=1
+RISK_DEFAULT_MAX_PORTFOLIO_RISK_PERCENT=8
+RISK_DEFAULT_MAX_OPEN_POSITIONS=8
+RISK_DEFAULT_MAX_POSITION_SIZE_PERCENT=25
+RISK_DEFAULT_MAX_SECTOR_EXPOSURE_PERCENT=40
+RISK_DEFAULT_MAX_CORRELATED_POSITIONS=3
+RISK_DEFAULT_ALLOW_PYRAMIDING=false
+
+REGIME_BULL_MIN_SCORE=70
+REGIME_BULL_MAX_CALLS=7
+REGIME_NEUTRAL_MIN_SCORE=75
+REGIME_NEUTRAL_MAX_CALLS=5
+REGIME_CORRECTION_MIN_SCORE=80
+REGIME_CORRECTION_MAX_CALLS=2
+REGIME_BEAR_MIN_SCORE=80
+REGIME_BEAR_MAX_CALLS=2
+REGIME_HIGH_VOL_MIN_SCORE=82
+REGIME_HIGH_VOL_MAX_CALLS=2
+
+CORRELATION_LOOKBACK_DAYS=90
+CORRELATION_HIGH_THRESHOLD=0.75
+
+ALERT_NEAR_STOP_THRESHOLD_PERCENT=1.5
+ALERT_NEAR_TARGET_THRESHOLD_PERCENT=2
+ALERT_CONFIDENCE_DROP_THRESHOLD=12
 ```
 
 ## Execução
@@ -115,88 +121,76 @@ php artisan serve
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
 
-Use o token retornado no header:
+Header:
 
 ```http
 Authorization: Bearer <token>
 ```
 
-## Endpoints Principais
+## Endpoints V3 de Gestão de Trading
 
-- Watchlist:
-  - `GET /api/assets`
-  - `POST /api/assets`
-  - `PATCH /api/assets/{id}`
-  - `DELETE /api/assets/{id}`
-- Sync:
-  - `POST /api/sync/assets/{ticker}`
-  - `POST /api/sync/assets`
-  - `POST /api/sync/market`
-  - `POST /api/sync/full`
-- Indicadores/Análise:
-  - `GET /api/assets/{ticker}/quotes`
-  - `GET /api/assets/{ticker}/indicators`
-  - `GET /api/assets/{ticker}/analysis`
-  - `GET /api/opportunities/top`
-  - `GET /api/opportunities/avoid`
-- Brief:
-  - `POST /api/briefs/generate`
-  - `GET /api/briefs`
-  - `GET /api/briefs/{date}`
-- Dashboard:
-  - `GET /api/dashboard`
-- Calls:
-  - `GET /api/calls`
-  - `GET /api/calls/queue`
-  - `GET /api/calls/{id}`
-  - `GET /api/calls/outcomes`
-  - `POST /api/calls/generate`
-  - `POST /api/calls/evaluate-open`
-  - `POST /api/calls/{id}/approve`
-  - `POST /api/calls/{id}/reject`
-  - `POST /api/calls/{id}/publish`
-- Quant:
-  - `GET /api/quant/dashboard`
-  - `GET /api/quant/setup-metrics`
-- Backtest:
-  - `GET /api/backtests`
-  - `POST /api/backtests/run`
-- Optimizer:
-  - `GET /api/optimizer/current`
-  - `POST /api/optimizer/run`
-  - `POST /api/optimizer/apply`
+### Configurações de risco
 
-## Commands
+- `GET /api/risk-settings`
+- `PUT /api/risk-settings`
+
+### Position sizing
+
+- `POST /api/position-sizing/calculate`
+
+### Portfólio
+
+- `GET /api/portfolio`
+- `GET /api/portfolio/open`
+- `GET /api/portfolio/closed`
+- `POST /api/portfolio/positions`
+- `PATCH /api/portfolio/positions/{id}`
+- `POST /api/portfolio/positions/{id}/close`
+- `POST /api/portfolio/positions/{id}/partial-close`
+- `POST /api/portfolio/simulate`
+
+### Risco
+
+- `GET /api/portfolio/risk`
+- `GET /api/portfolio/exposure`
+- `GET /api/portfolio/correlations`
+
+### Performance
+
+- `GET /api/performance/summary`
+- `GET /api/performance/equity-curve`
+- `GET /api/performance/by-setup`
+- `GET /api/performance/by-asset`
+- `GET /api/performance/by-sector`
+- `GET /api/performance/by-regime`
+
+### Alertas
+
+- `GET /api/alerts`
+- `POST /api/alerts/{id}/read`
+
+## Commands de Gestão V3
 
 ```bash
-php artisan market:sync-assets {ticker?} --now
-php artisan market:sync-context --now
-php artisan market:recalculate-indicators {ticker?} --now
-php artisan market:recalculate-scores {ticker?} --now
-php artisan market:generate-brief {date?} --now
-php artisan market:generate-weekly-calls --now
-php artisan market:evaluate-open-trades --now
-php artisan market:run-backtest {strategy?} --from=YYYY-MM-DD --to=YYYY-MM-DD --holding=20
-php artisan market:optimize-ranking-weights --apply
+php artisan market:portfolio-mark-to-market --now
+php artisan market:refresh-alerts --now
+php artisan market:snapshot-equity --now
+php artisan market:trading-pipeline --now
 ```
 
-Sem `--now`, os jobs são enfileirados.
+Sem `--now`, a execução vai para fila.
 
 ## Scheduler
 
-Configurado em `routes/console.php`:
+Jobs recorrentes de V3 em `routes/console.php`:
 
-- `market:sync-assets`
-- `market:sync-context`
-- `market:recalculate-indicators`
-- `market:recalculate-scores`
-- `market:generate-brief`
-- `market:evaluate-open-trades`
-- `market:generate-weekly-calls`
+- `market:portfolio-mark-to-market`
+- `market:refresh-alerts`
+- `market:snapshot-equity`
 
 ## Seed Inicial
 
-Credenciais admin:
+Credenciais admin padrão:
 
 - Email: `admin@marketwatcher.local`
 - Senha: `Admin@123456`

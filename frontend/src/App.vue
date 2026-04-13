@@ -7,19 +7,23 @@ import LoadingState from './components/ui/LoadingState.vue'
 import { useAuth } from './composables/useAuth'
 import LoginView from './views/LoginView.vue'
 import DashboardView from './views/DashboardView.vue'
+import PortfolioView from './views/PortfolioView.vue'
+import RiskView from './views/RiskView.vue'
+import PerformanceView from './views/PerformanceView.vue'
+import AlertsView from './views/AlertsView.vue'
 import AssetsView from './views/AssetsView.vue'
 import AssetDetailView from './views/AssetDetailView.vue'
-import OpportunitiesView from './views/OpportunitiesView.vue'
 import BriefsView from './views/BriefsView.vue'
 import CallsView from './views/CallsView.vue'
-import QuantView from './views/QuantView.vue'
 import {
+  mdiBellOutline,
   mdiBullhornOutline,
-  mdiChartLine,
+  mdiChartTimelineVariant,
   mdiFileDocumentOutline,
   mdiFormatListBulletedSquare,
-  mdiTarget,
+  mdiShieldAlertOutline,
   mdiViewDashboardOutline,
+  mdiWalletOutline,
 } from './constants/icons'
 
 const auth = useAuth()
@@ -28,10 +32,12 @@ const route = useRoute()
 
 const navItems = [
   { key: 'dashboard', label: 'Dashboard', iconPath: mdiViewDashboardOutline },
-  { key: 'assets', label: 'Watchlist', iconPath: mdiFormatListBulletedSquare },
-  { key: 'opportunities', label: 'Oportunidades', iconPath: mdiTarget },
+  { key: 'portfolio', label: 'Portfólio', iconPath: mdiWalletOutline },
+  { key: 'risk', label: 'Risco', iconPath: mdiShieldAlertOutline },
+  { key: 'performance', label: 'Performance', iconPath: mdiChartTimelineVariant },
+  { key: 'alerts', label: 'Alertas', iconPath: mdiBellOutline },
   { key: 'calls', label: 'Calls', iconPath: mdiBullhornOutline },
-  { key: 'quant', label: 'Quant', iconPath: mdiChartLine },
+  { key: 'assets', label: 'Watchlist', iconPath: mdiFormatListBulletedSquare },
   { key: 'briefs', label: 'Briefs', iconPath: mdiFileDocumentOutline },
 ]
 
@@ -44,11 +50,13 @@ let toastSequence = 0
 
 const activeView = computed(() => {
   if (route.name === 'dashboard') return 'dashboard'
+  if (route.name === 'portfolio') return 'portfolio'
+  if (route.name === 'risk') return 'risk'
+  if (route.name === 'performance') return 'performance'
+  if (route.name === 'alerts') return 'alerts'
   if (route.name === 'assets') return 'assets'
   if (route.name === 'asset-detail') return 'asset-detail'
-  if (route.name === 'opportunities') return 'opportunities'
   if (route.name === 'calls') return 'calls'
-  if (route.name === 'quant') return 'quant'
   if (route.name === 'briefs') return 'briefs'
   return 'dashboard'
 })
@@ -59,23 +67,27 @@ const selectedTicker = computed(() => {
 })
 
 const shellTitle = computed(() => {
-  if (activeView.value === 'dashboard') return 'Dashboard Estratégico'
+  if (activeView.value === 'dashboard') return 'Dashboard de Gestão'
+  if (activeView.value === 'portfolio') return 'Portfólio Real'
+  if (activeView.value === 'risk') return 'Risco e Exposição'
+  if (activeView.value === 'performance') return 'Performance Real'
+  if (activeView.value === 'alerts') return 'Alertas Inteligentes'
   if (activeView.value === 'assets') return 'Gestão da Watchlist'
   if (activeView.value === 'asset-detail') return `Ativo ${selectedTicker.value}`
-  if (activeView.value === 'opportunities') return 'Ranking de Oportunidades'
   if (activeView.value === 'calls') return 'Módulo de Calls'
-  if (activeView.value === 'quant') return 'Dashboard Quantitativo'
   if (activeView.value === 'briefs') return 'Brief Diário Operacional'
   return 'MarketWatcher'
 })
 
 const shellSubtitle = computed(() => {
-  if (activeView.value === 'dashboard') return 'Cards de mercado, classificação e setups detectados.'
+  if (activeView.value === 'dashboard') return 'Resumo de carteira, risco, calls, performance e alertas.'
+  if (activeView.value === 'portfolio') return 'Posições abertas/fechadas, saídas e simulação de carteira.'
+  if (activeView.value === 'risk') return 'Configuração de risco, sizing, correlação e concentração.'
+  if (activeView.value === 'performance') return 'Winrate, payoff, drawdown, curva de capital e breakdowns.'
+  if (activeView.value === 'alerts') return 'Monitoramento operacional e leitura de alertas críticos.'
   if (activeView.value === 'assets') return 'Cadastro, monitoramento e sincronização de ativos.'
   if (activeView.value === 'asset-detail') return 'Leitura técnica detalhada para decisão tática.'
-  if (activeView.value === 'opportunities') return 'Top oportunidades e ativos para evitar no dia.'
   if (activeView.value === 'calls') return 'Geração, aprovação, publicação e acompanhamento de calls.'
-  if (activeView.value === 'quant') return 'Métricas de edge, backtest e otimização de pesos.'
   if (activeView.value === 'briefs') return 'Resumo executivo com ranking de ideias e risco.'
   return ''
 })
@@ -132,10 +144,12 @@ function openAsset(ticker) {
 function navigateTo(viewKey) {
   const mapping = {
     dashboard: 'dashboard',
+    portfolio: 'portfolio',
+    risk: 'risk',
+    performance: 'performance',
+    alerts: 'alerts',
     assets: 'assets',
-    opportunities: 'opportunities',
     calls: 'calls',
-    quant: 'quant',
     briefs: 'briefs',
   }
 
@@ -146,14 +160,6 @@ function navigateTo(viewKey) {
   }
 
   router.push({ name: targetRoute })
-}
-
-function openBriefs() {
-  if (route.name === 'briefs') {
-    return
-  }
-
-  router.push({ name: 'briefs' })
 }
 
 function readPostLoginRedirect() {
@@ -239,7 +245,39 @@ onMounted(bootstrapSession)
       v-if="activeView === 'dashboard'"
       :api="auth.api"
       @open-asset="openAsset"
-      @open-briefs="openBriefs"
+      @open-alerts="navigateTo('alerts')"
+      @notify="notify"
+    />
+
+    <PortfolioView
+      v-else-if="activeView === 'portfolio'"
+      :api="auth.api"
+      @open-asset="openAsset"
+      @notify="notify"
+    />
+
+    <RiskView
+      v-else-if="activeView === 'risk'"
+      :api="auth.api"
+      @notify="notify"
+    />
+
+    <PerformanceView
+      v-else-if="activeView === 'performance'"
+      :api="auth.api"
+      @notify="notify"
+    />
+
+    <AlertsView
+      v-else-if="activeView === 'alerts'"
+      :api="auth.api"
+      @notify="notify"
+    />
+
+    <CallsView
+      v-else-if="activeView === 'calls'"
+      :api="auth.api"
+      @open-asset="openAsset"
       @notify="notify"
     />
 
@@ -255,26 +293,6 @@ onMounted(bootstrapSession)
       :api="auth.api"
       :ticker="selectedTicker"
       @back="navigateTo('assets')"
-      @notify="notify"
-    />
-
-    <OpportunitiesView
-      v-else-if="activeView === 'opportunities'"
-      :api="auth.api"
-      @open-asset="openAsset"
-      @notify="notify"
-    />
-
-    <CallsView
-      v-else-if="activeView === 'calls'"
-      :api="auth.api"
-      @open-asset="openAsset"
-      @notify="notify"
-    />
-
-    <QuantView
-      v-else-if="activeView === 'quant'"
-      :api="auth.api"
       @notify="notify"
     />
 

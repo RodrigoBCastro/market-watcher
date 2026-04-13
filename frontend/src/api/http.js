@@ -83,6 +83,7 @@ export function createHttpClient(options = {}) {
   return {
     get: (path, headers) => request(path, { method: 'GET', headers }),
     post: (path, body, headers) => request(path, { method: 'POST', body, headers }),
+    put: (path, body, headers) => request(path, { method: 'PUT', body, headers }),
     patch: (path, body, headers) => request(path, { method: 'PATCH', body, headers }),
     delete: (path, headers) => request(path, { method: 'DELETE', headers }),
   }

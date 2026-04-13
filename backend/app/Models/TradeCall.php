@@ -25,6 +25,11 @@ class TradeCall extends Model
         'score',
         'final_rank_score',
         'advanced_classification',
+        'confidence_score',
+        'confidence_label',
+        'market_regime',
+        'expectancy_snapshot',
+        'market_context_score_snapshot',
         'status',
         'generated_by_engine',
         'published_at',
@@ -45,6 +50,9 @@ class TradeCall extends Model
             'rr_ratio' => 'float',
             'score' => 'float',
             'final_rank_score' => 'float',
+            'confidence_score' => 'float',
+            'expectancy_snapshot' => 'float',
+            'market_context_score_snapshot' => 'float',
             'generated_by_engine' => 'boolean',
             'published_at' => 'datetime',
         ];
@@ -63,5 +71,10 @@ class TradeCall extends Model
     public function outcome(): HasOne
     {
         return $this->hasOne(TradeOutcome::class);
+    }
+
+    public function portfolioPositions(): HasMany
+    {
+        return $this->hasMany(PortfolioPosition::class);
     }
 }

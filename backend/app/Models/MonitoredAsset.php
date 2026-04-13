@@ -65,4 +65,14 @@ class MonitoredAsset extends Model
     {
         return $this->hasMany(TradeOutcome::class);
     }
+
+    public function sectorMapping(): HasOne
+    {
+        return $this->hasOne(AssetSectorMapping::class);
+    }
+
+    public function portfolioPositions(): HasMany
+    {
+        return $this->hasMany(PortfolioPosition::class);
+    }
 }

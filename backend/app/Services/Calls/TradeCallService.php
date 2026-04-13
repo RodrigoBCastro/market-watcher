@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Calls;
 
+use App\Contracts\ConfidenceScoreServiceInterface;
+use App\Contracts\MarketRegimeServiceInterface;
 use App\Contracts\TradeCallServiceInterface;
 use App\DTOs\TradeCallDTO;
 use App\Enums\CallReviewDecision;
@@ -21,6 +23,8 @@ class TradeCallService implements TradeCallServiceInterface
     public function __construct(
         private readonly TradeCallFilterService $tradeCallFilterService,
         private readonly FinalRankService $finalRankService,
+        private readonly MarketRegimeServiceInterface $marketRegimeService,
+        private readonly ConfidenceScoreServiceInterface $confidenceScoreService,
     ) {
     }
 
@@ -35,8 +39,11 @@ class TradeCallService implements TradeCallServiceInterface
             return [];
         }
 
-        $maxCalls = (int) config('market.calls.max_calls_per_cycle', 8);
-        $minScore = (float) config('market.calls.min_score', 70);
+        $regime = $this->marketRegimeService->current();
+        $regimeRules = $this->marketRegimeService->rulesForRegime($regime->regime);
+
+        $maxCalls = max(1, (int) ($regimeRules['max_calls'] ?? config('market.calls.max_calls_per_cycle', 8)));
+        $minScore = (float) ($regimeRules['min_score'] ?? config('market.calls.min_score', 70));
 
         $scores = AssetAnalysisScore::query()
             ->with('monitoredAsset:id,ticker')
@@ -61,7 +68,7 @@ class TradeCallService implements TradeCallServiceInterface
             }
 
             $metric = SetupMetric::query()->where('setup_code', $score->setup_code)->first();
-            $filter = $this->tradeCallFilterService->evaluate($score, $metric);
+            $filter = $this->tradeCallFilterService->evaluate($score, $metric, $minScore);
 
             if (! $filter['eligible']) {
                 continue;
@@ -79,6 +86,11 @@ class TradeCallService implements TradeCallServiceInterface
 
             $finalRank = $this->finalRankService->compute((float) $score->final_score, (float) ($metric?->expectancy ?? 0.0));
             $classification = $this->finalRankService->classify($metric, (float) $score->final_score);
+            $confidence = $this->confidenceScoreService->calculate(
+                technicalScore: (float) $score->final_score,
+                expectancy: (float) ($metric?->expectancy ?? 0.0),
+                marketRegime: $regime->regime,
+            );
 
             $model = TradeCall::query()->updateOrCreate([
                 'monitored_asset_id' => $score->monitored_asset_id,
@@ -95,6 +107,11 @@ class TradeCallService implements TradeCallServiceInterface
                 'score' => (float) $score->final_score,
                 'final_rank_score' => $finalRank,
                 'advanced_classification' => $classification,
+                'confidence_score' => $confidence->score,
+                'confidence_label' => $confidence->label,
+                'market_regime' => $regime->regime,
+                'expectancy_snapshot' => round((float) ($metric?->expectancy ?? 0.0), 4),
+                'market_context_score_snapshot' => round((float) $regime->contextScore, 4),
                 'status' => TradeCallStatus::DRAFT->value,
                 'generated_by_engine' => true,
                 'published_at' => null,
@@ -255,6 +272,9 @@ class TradeCallService implements TradeCallServiceInterface
             score: (float) $call->score,
             finalRankScore: (float) $call->final_rank_score,
             advancedClassification: $call->advanced_classification,
+            confidenceScore: $call->confidence_score !== null ? (float) $call->confidence_score : null,
+            confidenceLabel: $call->confidence_label,
+            marketRegime: $call->market_regime,
             status: (string) $call->status,
             generatedByEngine: (bool) $call->generated_by_engine,
             publishedAt: $call->published_at !== null ? CarbonImmutable::parse($call->published_at) : null,

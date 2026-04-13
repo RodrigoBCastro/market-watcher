@@ -2,6 +2,17 @@ import { createHttpClient } from './http'
 
 export function createMarketApi(getToken) {
   const http = createHttpClient({ getToken })
+  const buildQuery = (params = {}) => {
+    const query = new URLSearchParams()
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return
+      query.append(key, String(value))
+    })
+
+    const serialized = query.toString()
+    return serialized ? `?${serialized}` : ''
+  }
 
   return {
     login: (credentials) => http.post('/auth/login', credentials),
@@ -9,6 +20,33 @@ export function createMarketApi(getToken) {
     me: () => http.get('/auth/me'),
 
     getDashboard: () => http.get('/dashboard'),
+
+    getRiskSettings: () => http.get('/risk-settings'),
+    updateRiskSettings: (payload) => http.put('/risk-settings', payload),
+
+    calculatePositionSizing: (payload) => http.post('/position-sizing/calculate', payload),
+
+    getPortfolio: () => http.get('/portfolio'),
+    getPortfolioOpen: () => http.get('/portfolio/open'),
+    getPortfolioClosed: () => http.get('/portfolio/closed'),
+    createPortfolioPosition: (payload) => http.post('/portfolio/positions', payload),
+    updatePortfolioPosition: (id, payload) => http.patch(`/portfolio/positions/${id}`, payload),
+    closePortfolioPosition: (id, payload = {}) => http.post(`/portfolio/positions/${id}/close`, payload),
+    partialClosePortfolioPosition: (id, payload = {}) => http.post(`/portfolio/positions/${id}/partial-close`, payload),
+    simulatePortfolio: (payload = {}) => http.post('/portfolio/simulate', payload),
+    getPortfolioRisk: () => http.get('/portfolio/risk'),
+    getPortfolioExposure: () => http.get('/portfolio/exposure'),
+    getPortfolioCorrelations: () => http.get('/portfolio/correlations'),
+
+    getPerformanceSummary: (filters = {}) => http.get(`/performance/summary${buildQuery(filters)}`),
+    getPerformanceEquityCurve: (filters = {}) => http.get(`/performance/equity-curve${buildQuery(filters)}`),
+    getPerformanceBySetup: (filters = {}) => http.get(`/performance/by-setup${buildQuery(filters)}`),
+    getPerformanceByAsset: (filters = {}) => http.get(`/performance/by-asset${buildQuery(filters)}`),
+    getPerformanceBySector: (filters = {}) => http.get(`/performance/by-sector${buildQuery(filters)}`),
+    getPerformanceByRegime: (filters = {}) => http.get(`/performance/by-regime${buildQuery(filters)}`),
+
+    getAlerts: (params = {}) => http.get(`/alerts${buildQuery(params)}`),
+    readAlert: (id) => http.post(`/alerts/${id}/read`, {}),
 
     getAssets: () => http.get('/assets'),
     createAsset: (payload) => http.post('/assets', payload),

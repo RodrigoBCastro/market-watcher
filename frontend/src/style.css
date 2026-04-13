@@ -259,6 +259,13 @@ a {
   color: var(--text-muted);
 }
 
+.section-header-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .section-actions {
   display: inline-flex;
   gap: 8px;
@@ -657,8 +664,24 @@ a {
   font-size: 0.9rem;
 }
 
+.asset-form-wide {
+  grid-column: 1 / -1;
+}
+
 .asset-form-field:first-child input {
   text-transform: uppercase;
+}
+
+.text-input {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 10px;
+  min-height: 88px;
+  background: var(--form-input-bg);
+  color: var(--form-input-fg);
+  font: inherit;
+  resize: vertical;
 }
 
 .asset-switch-grid {
@@ -754,6 +777,66 @@ a {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.inline-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  min-height: 34px;
+}
+
+.risk-checkbox {
+  align-items: center;
+  grid-template-columns: auto 1fr;
+  display: grid;
+  gap: 8px;
+}
+
+.risk-checkbox input,
+.inline-checkbox input {
+  width: 16px;
+  height: 16px;
+}
+
+.simulation-grid {
+  align-items: start;
+}
+
+.simulation-grid .asset-form-field:last-child {
+  grid-column: 1 / -1;
+}
+
+.simulation-calls {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: var(--bg-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 150px;
+  overflow: auto;
+}
+
+.simulation-chip {
+  border: 1px solid var(--button-secondary-border);
+  background: var(--button-ghost-bg);
+  color: var(--button-ghost-fg);
+  border-radius: 999px;
+  min-height: 30px;
+  padding: 0 10px;
+  font: inherit;
+  cursor: pointer;
+  transition: 150ms ease;
+}
+
+.simulation-chip.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--button-primary-fg);
+  border-color: transparent;
 }
 
 .form-error {

@@ -15,3 +15,6 @@ Schedule::command('market:recalculate-scores')->weekdays()->at('19:35');
 Schedule::command('market:generate-brief')->weekdays()->at('19:45');
 Schedule::command('market:evaluate-open-trades')->weekdays()->at('19:55');
 Schedule::command('market:generate-weekly-calls')->weeklyOn(1, '07:20');
+Schedule::command('market:portfolio-mark-to-market')->weekdays()->at('20:05');
+Schedule::command('market:refresh-alerts')->weekdays()->at('20:10');
+Schedule::command('market:snapshot-equity')->weekdays()->at('20:15');

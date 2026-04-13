@@ -13,11 +13,11 @@ class TradeCallFilterService
     /**
      * @return array{eligible: bool, reasons: array<int, string>}
      */
-    public function evaluate(AssetAnalysisScore $score, ?SetupMetric $metric): array
+    public function evaluate(AssetAnalysisScore $score, ?SetupMetric $metric, ?float $minScoreOverride = null): array
     {
         $reasons = [];
 
-        $minScore = (float) config('market.calls.min_score', 70);
+        $minScore = $minScoreOverride ?? (float) config('market.calls.min_score', 70);
         $minRr = (float) config('market.calls.min_rr', 1.5);
         $maxStop = (float) config('market.limits.max_stop_percent', 4.0);
         $minTarget = (float) config('market.limits.min_target_percent', 6.0);

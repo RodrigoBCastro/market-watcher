@@ -16,6 +16,22 @@ const routes = [
     name: 'dashboard',
   },
   {
+    path: '/portfolio',
+    name: 'portfolio',
+  },
+  {
+    path: '/risk',
+    name: 'risk',
+  },
+  {
+    path: '/performance',
+    name: 'performance',
+  },
+  {
+    path: '/alerts',
+    name: 'alerts',
+  },
+  {
     path: '/assets',
     name: 'assets',
   },
@@ -24,20 +40,12 @@ const routes = [
     name: 'asset-detail',
   },
   {
-    path: '/opportunities',
-    name: 'opportunities',
-  },
-  {
     path: '/briefs',
     name: 'briefs',
   },
   {
     path: '/calls',
     name: 'calls',
-  },
-  {
-    path: '/quant',
-    name: 'quant',
   },
   {
     path: '/:pathMatch(.*)*',

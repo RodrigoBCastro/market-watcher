@@ -16,8 +16,10 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AdminUserSeeder::class,
             MonitoredAssetSeeder::class,
+            AssetSectorMappingSeeder::class,
             MacroSnapshotSeeder::class,
             SetupMetricSeeder::class,
+            RiskSettingsSeeder::class,
         ]);
     }
 }
