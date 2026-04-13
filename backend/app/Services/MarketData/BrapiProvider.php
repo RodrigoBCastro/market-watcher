@@ -25,40 +25,94 @@ class BrapiProvider implements MarketDataProviderInterface
         $this->token = config('services.brapi.token') ? (string) config('services.brapi.token') : null;
     }
 
-    public function getHistoricalQuotes(string $symbol, int $days): array
+    public function getHistoricalQuotes(string $symbol, int $days, ?string $fromDate = null): array
     {
-        $payload = $this->quoteRequest($symbol, [
-            'range' => $this->mapDaysToRange($days),
+        $batch = $this->getHistoricalQuotesBatch([strtoupper($symbol)], $days, $fromDate);
+
+        return $batch[strtoupper($symbol)] ?? [];
+    }
+
+    public function getHistoricalQuotesBatch(array $symbols, int $days, ?string $fromDate = null): array
+    {
+        $normalizedSymbols = $this->normalizeSymbols($symbols);
+        if ($normalizedSymbols === []) {
+            return [];
+        }
+
+        if (count($normalizedSymbols) > 20) {
+            throw new RuntimeException('A brapi permite no máximo 20 símbolos por requisição de histórico.');
+        }
+
+        $query = [
             'interval' => '1d',
             'fundamental' => 'false',
             'dividends' => 'false',
-        ]);
+        ];
 
-        $items = Arr::get($payload, 'results.0.historicalDataPrice', []);
+        $from = $this->normalizeFromDate($fromDate);
+        if ($from !== null) {
+            $query['from'] = $from;
+        } else {
+            $query['range'] = $this->mapDaysToRange($days);
+        }
 
-        $quotes = [];
+        $payload = $this->quoteRequest(implode(',', $normalizedSymbols), $query);
+        $results = Arr::get($payload, 'results', []);
 
-        foreach ($items as $item) {
-            if (! isset($item['date'], $item['open'], $item['high'], $item['low'], $item['close'])) {
+        /** @var array<string, array<int, MarketQuoteDTO>> $quotesBySymbol */
+        $quotesBySymbol = [];
+        foreach ($normalizedSymbols as $symbol) {
+            $quotesBySymbol[$symbol] = [];
+        }
+
+        if (! is_array($results)) {
+            return $quotesBySymbol;
+        }
+
+        foreach ($results as $result) {
+            if (! is_array($result)) {
                 continue;
             }
 
-            $quotes[] = new MarketQuoteDTO(
-                symbol: strtoupper($symbol),
-                tradeDate: CarbonImmutable::createFromTimestampUTC((int) $item['date'])->setTimezone(config('app.timezone')),
-                open: (float) $item['open'],
-                high: (float) $item['high'],
-                low: (float) $item['low'],
-                close: (float) $item['close'],
-                adjustedClose: isset($item['adjustedClose']) ? (float) $item['adjustedClose'] : null,
-                volume: (int) ($item['volume'] ?? 0),
-                source: 'brapi',
-            );
+            $symbol = strtoupper((string) ($result['symbol'] ?? $result['stock'] ?? $result['ticker'] ?? ''));
+            if ($symbol === '') {
+                continue;
+            }
+
+            if (! array_key_exists($symbol, $quotesBySymbol)) {
+                $quotesBySymbol[$symbol] = [];
+            }
+
+            $items = $result['historicalDataPrice'] ?? [];
+            if (! is_array($items)) {
+                continue;
+            }
+
+            foreach ($items as $item) {
+                if (! is_array($item) || ! isset($item['date'], $item['open'], $item['high'], $item['low'], $item['close'])) {
+                    continue;
+                }
+
+                $quotesBySymbol[$symbol][] = new MarketQuoteDTO(
+                    symbol: $symbol,
+                    tradeDate: CarbonImmutable::createFromTimestampUTC((int) $item['date'])->setTimezone(config('app.timezone')),
+                    open: (float) $item['open'],
+                    high: (float) $item['high'],
+                    low: (float) $item['low'],
+                    close: (float) $item['close'],
+                    adjustedClose: isset($item['adjustedClose']) ? (float) $item['adjustedClose'] : null,
+                    volume: (int) ($item['volume'] ?? 0),
+                    source: 'brapi',
+                );
+            }
         }
 
-        usort($quotes, fn (MarketQuoteDTO $a, MarketQuoteDTO $b): int => $a->tradeDate->getTimestamp() <=> $b->tradeDate->getTimestamp());
+        foreach ($quotesBySymbol as &$quotes) {
+            usort($quotes, fn (MarketQuoteDTO $a, MarketQuoteDTO $b): int => $a->tradeDate->getTimestamp() <=> $b->tradeDate->getTimestamp());
+        }
+        unset($quotes);
 
-        return $quotes;
+        return $quotesBySymbol;
     }
 
     public function getCurrentQuote(string $symbol): MarketQuoteDTO
@@ -97,7 +151,7 @@ class BrapiProvider implements MarketDataProviderInterface
 
     public function getIndexQuote(string $symbol, int $days = 60): array
     {
-        return $this->getHistoricalQuotes($symbol, $days);
+        return $this->getHistoricalQuotes($symbol, $days, null);
     }
 
     public function getUsdBrlQuote(): array
@@ -229,6 +283,34 @@ class BrapiProvider implements MarketDataProviderInterface
             $days <= 1825 => '5y',
             default => 'max',
         };
+    }
+
+    /**
+     * @param  array<int, string>  $symbols
+     * @return array<int, string>
+     */
+    private function normalizeSymbols(array $symbols): array
+    {
+        $normalized = array_values(array_unique(array_filter(array_map(
+            static fn (string $symbol): string => strtoupper(trim($symbol)),
+            $symbols,
+        ))));
+
+        return $normalized;
+    }
+
+    private function normalizeFromDate(?string $fromDate): ?string
+    {
+        $value = trim((string) $fromDate);
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse($value)->toDateString();
+        } catch (\Throwable $exception) {
+            throw new RuntimeException("Data inicial inválida para sync histórico: {$value}");
+        }
     }
 
     /**

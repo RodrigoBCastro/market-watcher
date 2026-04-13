@@ -11,7 +11,13 @@ interface MarketDataProviderInterface
     /**
      * @return array<int, MarketQuoteDTO>
      */
-    public function getHistoricalQuotes(string $symbol, int $days): array;
+    public function getHistoricalQuotes(string $symbol, int $days, ?string $fromDate = null): array;
+
+    /**
+     * @param  array<int, string>  $symbols
+     * @return array<string, array<int, MarketQuoteDTO>>
+     */
+    public function getHistoricalQuotesBatch(array $symbols, int $days, ?string $fromDate = null): array;
 
     public function getCurrentQuote(string $symbol): MarketQuoteDTO;
 

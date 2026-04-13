@@ -116,4 +116,9 @@ class MonitoredAsset extends Model
     {
         return $this->hasMany(MarketUniverseMembership::class);
     }
+
+    public function historySyncState(): HasOne
+    {
+        return $this->hasOne(AssetHistorySyncState::class);
+    }
 }

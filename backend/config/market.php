@@ -5,6 +5,8 @@ declare(strict_types=1);
 return [
     'sync' => [
         'asset_days' => (int) env('MARKET_SYNC_ASSET_DAYS', 90),
+        'start_years_back' => (int) env('MARKET_SYNC_START_YEARS_BACK', 10),
+        'batch_size' => (int) env('MARKET_SYNC_BATCH_SIZE', 20),
     ],
     'asset_master' => [
         'delist_after_missing_syncs' => (int) env('ASSET_MASTER_DELIST_AFTER_MISSING_SYNCS', 3),

@@ -21,12 +21,13 @@ class AssetController extends Controller
     public function index(): JsonResponse
     {
         $assets = MonitoredAsset::query()
-            ->with(['assetMaster', 'latestAnalysisScore', 'universeMemberships'])
+            ->with(['assetMaster', 'latestAnalysisScore', 'universeMemberships', 'historySyncState'])
             ->orderBy('ticker')
             ->get()
             ->map(static function (MonitoredAsset $asset): array {
                 $latestScore = $asset->latestAnalysisScore;
                 $memberships = $asset->universeMemberships->keyBy('universe_type');
+                $historySync = $asset->historySyncState;
 
                 return [
                     'id' => $asset->id,
@@ -43,6 +44,17 @@ class AssetController extends Controller
                     'liquidity_score' => $asset->liquidity_score,
                     'operability_score' => $asset->operability_score,
                     'metadata' => $asset->metadata,
+                    'history_sync' => $historySync !== null ? [
+                        'status' => $historySync->status,
+                        'bootstrap_from_date' => $historySync->bootstrap_from_date?->toDateString(),
+                        'earliest_quote_date_found' => $historySync->earliest_quote_date_found?->toDateString(),
+                        'latest_quote_date_synced' => $historySync->latest_quote_date_synced?->toDateString(),
+                        'last_mode_used' => $historySync->last_mode_used,
+                        'bootstrap_completed_at' => $historySync->bootstrap_completed_at?->toIso8601String(),
+                        'last_bootstrap_at' => $historySync->last_bootstrap_at?->toIso8601String(),
+                        'last_rolling_at' => $historySync->last_rolling_at?->toIso8601String(),
+                        'last_error' => $historySync->last_error,
+                    ] : null,
                     'asset_master' => $asset->assetMaster !== null ? [
                         'id' => (int) $asset->assetMaster->id,
                         'symbol' => $asset->assetMaster->symbol,
