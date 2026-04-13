@@ -6,10 +6,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\GenerateDailyBriefJob;
+use App\Jobs\BootstrapDataUniverseFromMasterJob;
 use App\Jobs\RecalculateEligibleUniverseJob;
 use App\Jobs\RecalculateIndicatorsJob;
 use App\Jobs\RecalculateScoresJob;
 use App\Jobs\RecalculateTradingUniverseJob;
+use App\Jobs\SyncAssetMasterFromBrapiJob;
 use App\Jobs\SyncDataUniverseJob;
 use App\Jobs\SyncMarketContextJob;
 use Illuminate\Http\JsonResponse;
@@ -47,6 +49,8 @@ class SyncController extends Controller
     public function syncFull(): JsonResponse
     {
         Bus::chain([
+            new SyncAssetMasterFromBrapiJob(),
+            new BootstrapDataUniverseFromMasterJob(),
             new SyncDataUniverseJob(),
             new RecalculateEligibleUniverseJob(),
             new RecalculateTradingUniverseJob(),

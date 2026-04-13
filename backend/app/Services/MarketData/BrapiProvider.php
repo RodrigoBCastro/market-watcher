@@ -6,6 +6,7 @@ namespace App\Services\MarketData;
 
 use App\Contracts\MarketDataProviderInterface;
 use App\DTOs\MarketQuoteDTO;
+use App\Enums\AssetType;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Arr;
@@ -115,6 +116,72 @@ class BrapiProvider implements MarketDataProviderInterface
         ];
     }
 
+    public function getAssetMasterList(): array
+    {
+        $payload = $this->listRequest();
+
+        $stocks = Arr::get($payload, 'stocks', []);
+        if (! is_array($stocks) || $stocks === []) {
+            $stocks = Arr::get($payload, 'results', []);
+        }
+
+        $indexes = Arr::get($payload, 'indexes', []);
+
+        $assetItems = [];
+        $indexItems = [];
+
+        foreach ($stocks as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $symbol = strtoupper((string) ($item['stock'] ?? $item['symbol'] ?? $item['ticker'] ?? ''));
+            if ($symbol === '') {
+                continue;
+            }
+
+            $normalizedType = AssetType::normalize((string) ($item['type'] ?? $item['quoteType'] ?? ''), $symbol);
+
+            if ($normalizedType === AssetType::INDEX) {
+                $indexItems[] = $this->normalizeIndex($item, $symbol);
+                continue;
+            }
+
+            $assetItems[] = [
+                'symbol' => $symbol,
+                'name' => (string) ($item['name'] ?? $item['shortName'] ?? $symbol),
+                'asset_type' => $normalizedType->value,
+                'sector' => isset($item['sector']) ? (string) $item['sector'] : null,
+                'logo_url' => isset($item['logo']) ? (string) $item['logo'] : null,
+                'last_close' => isset($item['close']) ? (float) $item['close'] : (isset($item['regularMarketPrice']) ? (float) $item['regularMarketPrice'] : null),
+                'last_change_percent' => isset($item['change']) ? (float) $item['change'] : (isset($item['changePercent']) ? (float) $item['changePercent'] : null),
+                'last_volume' => isset($item['volume']) ? (int) $item['volume'] : (isset($item['regularMarketVolume']) ? (int) $item['regularMarketVolume'] : null),
+                'market_cap' => isset($item['market_cap']) ? (float) $item['market_cap'] : (isset($item['marketCap']) ? (float) $item['marketCap'] : null),
+                'source' => 'brapi',
+                'source_payload' => $item,
+            ];
+        }
+
+        foreach ($indexes as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $symbol = strtoupper((string) ($item['stock'] ?? $item['symbol'] ?? $item['ticker'] ?? ''));
+            if ($symbol === '') {
+                continue;
+            }
+
+            $indexItems[] = $this->normalizeIndex($item, $symbol);
+        }
+
+        return [
+            'assets' => $assetItems,
+            'indexes' => $indexItems,
+            'raw' => $payload,
+        ];
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -140,6 +207,10 @@ class BrapiProvider implements MarketDataProviderInterface
 
         /** @var array<string, mixed> $json */
         $json = $response->json() ?? [];
+        if ((bool) ($json['error'] ?? false)) {
+            $message = (string) ($json['message'] ?? "Brapi retornou erro de domínio para {$symbol}");
+            throw new RuntimeException($message);
+        }
 
         return $json;
     }
@@ -158,5 +229,52 @@ class BrapiProvider implements MarketDataProviderInterface
             $days <= 1825 => '5y',
             default => 'max',
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function listRequest(array $query = []): array
+    {
+        try {
+            $request = Http::timeout((int) config('services.brapi.timeout', 10))
+                ->retry((int) config('services.brapi.retries', 2), 500)
+                ->acceptJson();
+
+            if ($this->token !== null) {
+                $request = $request->withToken($this->token);
+            }
+
+            $response = $request->get("{$this->baseUrl}/quote/list", $query);
+        } catch (ConnectionException $exception) {
+            throw new RuntimeException('Falha de conexão com brapi na listagem de ativos.', previous: $exception);
+        }
+
+        if (! $response->successful()) {
+            throw new RuntimeException("Brapi retornou erro {$response->status()} na listagem de ativos.");
+        }
+
+        /** @var array<string, mixed> $json */
+        $json = $response->json() ?? [];
+        if ((bool) ($json['error'] ?? false)) {
+            $message = (string) ($json['message'] ?? 'Brapi retornou erro de domínio na listagem de ativos.');
+            throw new RuntimeException($message);
+        }
+
+        return $json;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function normalizeIndex(array $item, string $symbol): array
+    {
+        return [
+            'symbol' => $symbol,
+            'name' => (string) ($item['name'] ?? $item['shortName'] ?? $symbol),
+            'source' => 'brapi',
+            'source_payload' => $item,
+        ];
     }
 }

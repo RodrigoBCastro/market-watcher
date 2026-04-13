@@ -1,6 +1,6 @@
 # MarketWatcher Frontend (Vue 3)
 
-Painel web para operação do MarketWatcher com foco no módulo V3 de gestão de trading.
+Painel web para operação do MarketWatcher com foco nos módulos V4/V5 (universos + asset master).
 
 ## Stack
 
@@ -40,7 +40,7 @@ Se necessário, configure proxy/base URL no ambiente de execução do frontend.
 - Token salvo em `localStorage` (`marketwatcher.token`)
 - Guard de rota redireciona para login quando não autenticado
 
-## Telas principais V3
+## Telas principais
 
 - Dashboard de gestão (`/dashboard`)
 - Portfólio real (`/portfolio`)
@@ -48,6 +48,7 @@ Se necessário, configure proxy/base URL no ambiente de execução do frontend.
 - Performance real (`/performance`)
 - Alertas inteligentes (`/alerts`)
 - Módulos legados mantidos: Calls, Watchlist, Briefs
+- Asset Master Registry (`/asset-master`) com sync, filtros, índices e bootstrap do Data Universe
 
 ## Padrões UI
 
@@ -58,5 +59,5 @@ Se necessário, configure proxy/base URL no ambiente de execução do frontend.
 
 ## Observações
 
-- O frontend espera que o backend tenha migrations/seeders V3 aplicados.
+- O frontend espera que o backend tenha migrations/seeders V5 aplicados.
 - Endpoints de gestão de trading exigem autenticação via Bearer token.

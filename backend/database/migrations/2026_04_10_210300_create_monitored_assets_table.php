@@ -12,6 +12,7 @@ return new class extends Migration
     {
         Schema::create('monitored_assets', function (Blueprint $table): void {
             $table->id();
+            $table->foreignId('asset_master_id')->nullable()->constrained('asset_master')->nullOnDelete()->unique();
             $table->string('ticker', 12)->unique();
             $table->string('name');
             $table->string('sector')->nullable();

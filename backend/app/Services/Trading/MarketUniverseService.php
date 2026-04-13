@@ -102,7 +102,17 @@ class MarketUniverseService implements MarketUniverseServiceInterface
             ->where('universe_type', $type->value)
             ->where('is_active', true)
             ->with([
-                'monitoredAsset.latestAnalysisScore:id,monitored_asset_id,trade_date,final_score,classification,recommendation,setup_label',
+                'monitoredAsset.latestAnalysisScore' => static function ($query): void {
+                    $query->select([
+                        'asset_analysis_scores.id',
+                        'asset_analysis_scores.monitored_asset_id',
+                        'asset_analysis_scores.trade_date',
+                        'asset_analysis_scores.final_score',
+                        'asset_analysis_scores.classification',
+                        'asset_analysis_scores.recommendation',
+                        'asset_analysis_scores.setup_label',
+                    ]);
+                },
             ])
             ->orderByDesc('updated_at')
             ->limit($limit)
@@ -308,7 +318,14 @@ class MarketUniverseService implements MarketUniverseServiceInterface
             ->where('is_active', true)
             ->with([
                 'monitoredAsset',
-                'monitoredAsset.latestAnalysisScore:id,monitored_asset_id,final_score',
+                'monitoredAsset.latestAnalysisScore' => static function ($query): void {
+                    $query->select([
+                        'asset_analysis_scores.id',
+                        'asset_analysis_scores.monitored_asset_id',
+                        'asset_analysis_scores.trade_date',
+                        'asset_analysis_scores.final_score',
+                    ]);
+                },
             ])
             ->get();
 

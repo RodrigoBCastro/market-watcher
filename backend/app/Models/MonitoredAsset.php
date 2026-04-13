@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class MonitoredAsset extends Model
 {
     protected $fillable = [
+        'asset_master_id',
         'ticker',
         'name',
         'sector',
@@ -58,6 +60,11 @@ class MonitoredAsset extends Model
             'last_universe_review_at' => 'datetime',
             'metadata' => 'array',
         ];
+    }
+
+    public function assetMaster(): BelongsTo
+    {
+        return $this->belongsTo(AssetMaster::class);
     }
 
     public function quotes(): HasMany

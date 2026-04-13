@@ -40,6 +40,10 @@ const routes = [
     name: 'assets',
   },
   {
+    path: '/asset-master',
+    name: 'asset-master',
+  },
+  {
     path: '/universes',
     name: 'universes',
   },

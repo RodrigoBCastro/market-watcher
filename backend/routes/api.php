@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\AssetAnalysisController;
 use App\Http\Controllers\Api\AssetController;
+use App\Http\Controllers\Api\AssetMasterController;
 use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BacktestController;
@@ -40,6 +41,13 @@ Route::middleware('api.token')->group(function (): void {
         ->where('ticker', '[A-Za-z0-9\^=\.\-]+');
     Route::get('/assets/{ticker}/universe-status', [UniverseController::class, 'assetStatus'])
         ->where('ticker', '[A-Za-z0-9\^=\.\-]+');
+
+    Route::get('/asset-master', [AssetMasterController::class, 'index']);
+    Route::get('/asset-master/indexes', [AssetMasterController::class, 'indexes']);
+    Route::get('/asset-master/{symbol}', [AssetMasterController::class, 'show'])
+        ->where('symbol', '[A-Za-z0-9\^=\.\-]+');
+    Route::post('/asset-master/sync', [AssetMasterController::class, 'sync']);
+    Route::post('/asset-master/bootstrap-data-universe', [AssetMasterController::class, 'bootstrapDataUniverse']);
 
     Route::get('/assets', [AssetController::class, 'index']);
     Route::post('/assets', [AssetController::class, 'store']);

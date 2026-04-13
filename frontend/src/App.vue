@@ -17,11 +17,13 @@ import UniversesView from './views/UniversesView.vue'
 import AssetDetailView from './views/AssetDetailView.vue'
 import BriefsView from './views/BriefsView.vue'
 import CallsView from './views/CallsView.vue'
+import AssetMasterView from './views/AssetMasterView.vue'
 import {
   mdiBellOutline,
   mdiBullhornOutline,
   mdiChartLine,
   mdiChartTimelineVariant,
+  mdiDatabaseSync,
   mdiFileDocumentOutline,
   mdiFormatListBulletedSquare,
   mdiLayersTriple,
@@ -43,6 +45,7 @@ const navItems = [
   { key: 'alerts', label: 'Alertas', iconPath: mdiBellOutline },
   { key: 'calls', label: 'Calls', iconPath: mdiBullhornOutline },
   { key: 'assets', label: 'Watchlist', iconPath: mdiFormatListBulletedSquare },
+  { key: 'asset-master', label: 'Asset Master', iconPath: mdiDatabaseSync },
   { key: 'universes', label: 'Universos', iconPath: mdiLayersTriple },
   { key: 'briefs', label: 'Briefs', iconPath: mdiFileDocumentOutline },
 ]
@@ -62,6 +65,7 @@ const activeView = computed(() => {
   if (route.name === 'backtests') return 'backtests'
   if (route.name === 'alerts') return 'alerts'
   if (route.name === 'assets') return 'assets'
+  if (route.name === 'asset-master') return 'asset-master'
   if (route.name === 'universes') return 'universes'
   if (route.name === 'asset-detail') return 'asset-detail'
   if (route.name === 'calls') return 'calls'
@@ -82,6 +86,7 @@ const shellTitle = computed(() => {
   if (activeView.value === 'backtests') return 'Backtests'
   if (activeView.value === 'alerts') return 'Alertas Inteligentes'
   if (activeView.value === 'assets') return 'Gestão da Watchlist'
+  if (activeView.value === 'asset-master') return 'Asset Master Registry'
   if (activeView.value === 'universes') return 'Universos de Mercado'
   if (activeView.value === 'asset-detail') return `Ativo ${selectedTicker.value}`
   if (activeView.value === 'calls') return 'Módulo de Calls'
@@ -97,6 +102,7 @@ const shellSubtitle = computed(() => {
   if (activeView.value === 'backtests') return 'Execução e histórico de testes da estratégia em dados passados.'
   if (activeView.value === 'alerts') return 'Monitoramento operacional e leitura de alertas críticos.'
   if (activeView.value === 'assets') return 'Cadastro, monitoramento e sincronização de ativos.'
+  if (activeView.value === 'asset-master') return 'Base central de ativos, tipos e índices para bootstrap do sistema.'
   if (activeView.value === 'universes') return 'Camadas Data/Eligible/Trading para foco operacional do motor.'
   if (activeView.value === 'asset-detail') return 'Leitura técnica detalhada para decisão tática.'
   if (activeView.value === 'calls') return 'Geração, aprovação, publicação e acompanhamento de calls.'
@@ -162,6 +168,7 @@ function navigateTo(viewKey) {
     backtests: 'backtests',
     alerts: 'alerts',
     assets: 'assets',
+    'asset-master': 'asset-master',
     universes: 'universes',
     calls: 'calls',
     briefs: 'briefs',
@@ -303,6 +310,13 @@ onMounted(bootstrapSession)
 
     <AssetsView
       v-else-if="activeView === 'assets'"
+      :api="auth.api"
+      @open-asset="openAsset"
+      @notify="notify"
+    />
+
+    <AssetMasterView
+      v-else-if="activeView === 'asset-master'"
       :api="auth.api"
       @open-asset="openAsset"
       @notify="notify"

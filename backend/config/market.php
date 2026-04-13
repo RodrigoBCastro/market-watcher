@@ -6,6 +6,14 @@ return [
     'sync' => [
         'asset_days' => (int) env('MARKET_SYNC_ASSET_DAYS', 90),
     ],
+    'asset_master' => [
+        'delist_after_missing_syncs' => (int) env('ASSET_MASTER_DELIST_AFTER_MISSING_SYNCS', 3),
+        'exclude_fractional_symbols' => (bool) env('ASSET_MASTER_EXCLUDE_FRACTIONAL_SYMBOLS', true),
+    ],
+    'bootstrap' => [
+        'default_asset_types' => ['stock'],
+        'default_limit' => (int) env('BOOTSTRAP_DATA_UNIVERSE_LIMIT', 1000),
+    ],
     'universes' => [
         'eligible' => [
             'min_history_days' => (int) env('UNIVERSE_ELIGIBLE_MIN_HISTORY_DAYS', 90),

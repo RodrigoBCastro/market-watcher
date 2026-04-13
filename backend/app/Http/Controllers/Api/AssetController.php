@@ -8,6 +8,7 @@ use App\Contracts\MarketUniverseServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAssetRequest;
 use App\Http\Requests\UpdateAssetRequest;
+use App\Models\AssetMaster;
 use App\Models\MonitoredAsset;
 use Illuminate\Http\JsonResponse;
 
@@ -20,7 +21,7 @@ class AssetController extends Controller
     public function index(): JsonResponse
     {
         $assets = MonitoredAsset::query()
-            ->with(['latestAnalysisScore', 'universeMemberships'])
+            ->with(['assetMaster', 'latestAnalysisScore', 'universeMemberships'])
             ->orderBy('ticker')
             ->get()
             ->map(static function (MonitoredAsset $asset): array {
@@ -42,6 +43,12 @@ class AssetController extends Controller
                     'liquidity_score' => $asset->liquidity_score,
                     'operability_score' => $asset->operability_score,
                     'metadata' => $asset->metadata,
+                    'asset_master' => $asset->assetMaster !== null ? [
+                        'id' => (int) $asset->assetMaster->id,
+                        'symbol' => $asset->assetMaster->symbol,
+                        'asset_type' => $asset->assetMaster->asset_type,
+                        'is_listed' => (bool) $asset->assetMaster->is_listed,
+                    ] : null,
                     'memberships' => [
                         'data_universe' => (bool) ($memberships->get('data_universe')?->is_active ?? false),
                         'eligible_universe' => (bool) ($memberships->get('eligible_universe')?->is_active ?? false),
@@ -64,7 +71,19 @@ class AssetController extends Controller
 
     public function store(StoreAssetRequest $request): JsonResponse
     {
-        $asset = MonitoredAsset::query()->create($request->validated());
+        $payload = $request->validated();
+
+        $assetMaster = AssetMaster::query()
+            ->where('symbol', strtoupper((string) ($payload['ticker'] ?? '')))
+            ->first();
+
+        if ($assetMaster !== null) {
+            $payload['asset_master_id'] = (int) $assetMaster->id;
+            $payload['name'] = $payload['name'] ?? $assetMaster->name;
+            $payload['sector'] = $payload['sector'] ?? $assetMaster->sector;
+        }
+
+        $asset = MonitoredAsset::query()->create($payload);
         $this->marketUniverseService->updateMembership(
             assetId: (int) $asset->id,
             universeType: 'data_universe',

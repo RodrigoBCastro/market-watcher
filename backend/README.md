@@ -1,6 +1,6 @@
 # MarketWatcher Backend (Laravel)
 
-Backend da plataforma MarketWatcher para análise técnica, geração de calls e gestão completa de trading (V4).
+Backend da plataforma MarketWatcher para análise técnica, geração de calls e gestão completa de trading (V5).
 
 ## Stack
 
@@ -47,6 +47,15 @@ Backend da plataforma MarketWatcher para análise técnica, geração de calls e
 - Watchlists lógicas: `full_market`, `extended`, `core`
 - Jobs dedicados para sync amplo e recálculo de universos
 
+## Camada V5 de Asset Master Registry
+
+- Cadastro mestre central de ativos (`asset_master`) sincronizado via Brapi (`/quote/list`)
+- Persistência de índices de mercado (`market_index_master`) para contexto e benchmarking
+- Normalização de tipos de ativo (`stock`, `fund`, `bdr`, `index`, `unknown`)
+- Controle de ciclo de vida de ativos (first/last seen, missing sync count, delisting lógico)
+- Bootstrap automático `asset_master -> monitored_assets -> data_universe`
+- Endpoints dedicados para consulta/sync/bootstrap do cadastro mestre
+
 ## Principais Tabelas
 
 Além das tabelas base do sistema:
@@ -61,6 +70,8 @@ Além das tabelas base do sistema:
 - `trade_calls` (com campos de confiança/regime)
 - `market_universe_memberships`
 - `market_universe_events`
+- `asset_master`
+- `market_index_master`
 
 ## Configuração (.env)
 
@@ -131,6 +142,10 @@ UNIVERSE_TRADING_WEIGHT_LIQUIDITY=0.35
 UNIVERSE_TRADING_WEIGHT_OPERABILITY=0.35
 UNIVERSE_TRADING_WEIGHT_RECENT_SCORE=0.20
 UNIVERSE_TRADING_WEIGHT_INDEX_BONUS=0.10
+
+ASSET_MASTER_DELIST_AFTER_MISSING_SYNCS=3
+ASSET_MASTER_EXCLUDE_FRACTIONAL_SYMBOLS=true
+BOOTSTRAP_DATA_UNIVERSE_LIMIT=1000
 ```
 
 ## Execução
@@ -208,6 +223,14 @@ Authorization: Bearer <token>
 - `PATCH /api/assets/{id}/universe-membership`
 - `GET /api/assets/{ticker}/universe-status`
 
+### Asset Master Registry (V5)
+
+- `GET /api/asset-master`
+- `GET /api/asset-master/{symbol}`
+- `POST /api/asset-master/sync`
+- `GET /api/asset-master/indexes`
+- `POST /api/asset-master/bootstrap-data-universe`
+
 ## Commands de Gestão V3
 
 ```bash
@@ -218,6 +241,8 @@ php artisan market:trading-pipeline --now
 php artisan market:sync-data-universe --now
 php artisan market:recalculate-eligible-universe --now
 php artisan market:recalculate-trading-universe --now
+php artisan market:sync-asset-master --now
+php artisan market:bootstrap-data-universe --now
 ```
 
 Sem `--now`, a execução vai para fila.
@@ -229,6 +254,8 @@ Jobs recorrentes de V3 em `routes/console.php`:
 - `market:sync-data-universe`
 - `market:recalculate-eligible-universe`
 - `market:recalculate-trading-universe`
+- `market:sync-asset-master`
+- `market:bootstrap-data-universe`
 - `market:portfolio-mark-to-market`
 - `market:refresh-alerts`
 - `market:snapshot-equity`

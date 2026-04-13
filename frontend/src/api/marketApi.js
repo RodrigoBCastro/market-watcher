@@ -75,6 +75,13 @@ export function createMarketApi(getToken) {
       http.get(`/assets/${encodeURIComponent(ticker)}/indicators?limit=${limit}`),
     getAssetAnalysis: (ticker) => http.get(`/assets/${encodeURIComponent(ticker)}/analysis`),
 
+    getAssetMaster: (filters = {}) => http.get(`/asset-master${buildQuery(filters)}`),
+    getAssetMasterBySymbol: (symbol) => http.get(`/asset-master/${encodeURIComponent(symbol)}`),
+    syncAssetMaster: (sync = false) => http.post(sync ? '/asset-master/sync?sync=1' : '/asset-master/sync', {}),
+    getAssetMasterIndexes: (filters = {}) => http.get(`/asset-master/indexes${buildQuery(filters)}`),
+    bootstrapDataUniverseFromMaster: (payload = {}, sync = false) =>
+      http.post(sync ? '/asset-master/bootstrap-data-universe?sync=1' : '/asset-master/bootstrap-data-universe', payload),
+
     getOpportunitiesTop: (date = null) =>
       http.get(date ? `/opportunities/top?date=${date}` : '/opportunities/top'),
     getOpportunitiesAvoid: (date = null) =>

@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Contracts\BacktestEngineInterface;
+use App\Contracts\AssetMasterRegistryServiceInterface;
+use App\Contracts\AssetUniverseBootstrapServiceInterface;
 use App\Contracts\BrokerIntegrationInterface;
 use App\Contracts\ConfidenceScoreServiceInterface;
 use App\Contracts\CorrelationAnalysisServiceInterface;
@@ -31,6 +33,7 @@ use App\Services\Briefing\DailyBriefGenerator;
 use App\Services\Calls\TradeCallService;
 use App\Services\Execution\NullBrokerIntegration;
 use App\Services\Indicators\IndicatorPipeline;
+use App\Services\MarketData\AssetMasterRegistryService;
 use App\Services\MarketData\BrapiProvider;
 use App\Services\Metrics\SetupMetricsService;
 use App\Services\Optimization\ScoreOptimizerService;
@@ -46,6 +49,7 @@ use App\Services\Trading\PortfolioSimulationService;
 use App\Services\Trading\PositionSizingService;
 use App\Services\Trading\RiskSettingsService;
 use App\Services\Trading\TradingAlertService;
+use App\Services\Trading\AssetUniverseBootstrapService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -56,8 +60,10 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(MarketDataProviderInterface::class, BrapiProvider::class);
+        $this->app->bind(AssetMasterRegistryServiceInterface::class, AssetMasterRegistryService::class);
         $this->app->bind(IndicatorCalculatorInterface::class, IndicatorPipeline::class);
         $this->app->bind(MarketUniverseServiceInterface::class, MarketUniverseService::class);
+        $this->app->bind(AssetUniverseBootstrapServiceInterface::class, AssetUniverseBootstrapService::class);
         $this->app->bind(SetupDetectorInterface::class, SetupDetectionService::class);
         $this->app->bind(ScoreEngineInterface::class, CompositeScoreEngine::class);
         $this->app->bind(TradeDecisionEngineInterface::class, TradeDecisionEngine::class);

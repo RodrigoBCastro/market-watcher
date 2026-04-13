@@ -24,4 +24,13 @@ interface MarketDataProviderInterface
      * @return array{symbol: string, value: float, source: string, trade_date: string}
      */
     public function getUsdBrlQuote(): array;
+
+    /**
+     * @return array{
+     *   assets: array<int, array<string, mixed>>,
+     *   indexes: array<int, array<string, mixed>>,
+     *   raw: array<string, mixed>
+     * }
+     */
+    public function getAssetMasterList(): array;
 }
