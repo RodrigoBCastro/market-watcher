@@ -10,6 +10,7 @@ import DashboardView from './views/DashboardView.vue'
 import PortfolioView from './views/PortfolioView.vue'
 import RiskView from './views/RiskView.vue'
 import PerformanceView from './views/PerformanceView.vue'
+import BacktestsView from './views/BacktestsView.vue'
 import AlertsView from './views/AlertsView.vue'
 import AssetsView from './views/AssetsView.vue'
 import AssetDetailView from './views/AssetDetailView.vue'
@@ -18,6 +19,7 @@ import CallsView from './views/CallsView.vue'
 import {
   mdiBellOutline,
   mdiBullhornOutline,
+  mdiChartLine,
   mdiChartTimelineVariant,
   mdiFileDocumentOutline,
   mdiFormatListBulletedSquare,
@@ -35,6 +37,7 @@ const navItems = [
   { key: 'portfolio', label: 'Portfólio', iconPath: mdiWalletOutline },
   { key: 'risk', label: 'Risco', iconPath: mdiShieldAlertOutline },
   { key: 'performance', label: 'Performance', iconPath: mdiChartTimelineVariant },
+  { key: 'backtests', label: 'Backtests', iconPath: mdiChartLine },
   { key: 'alerts', label: 'Alertas', iconPath: mdiBellOutline },
   { key: 'calls', label: 'Calls', iconPath: mdiBullhornOutline },
   { key: 'assets', label: 'Watchlist', iconPath: mdiFormatListBulletedSquare },
@@ -53,6 +56,7 @@ const activeView = computed(() => {
   if (route.name === 'portfolio') return 'portfolio'
   if (route.name === 'risk') return 'risk'
   if (route.name === 'performance') return 'performance'
+  if (route.name === 'backtests') return 'backtests'
   if (route.name === 'alerts') return 'alerts'
   if (route.name === 'assets') return 'assets'
   if (route.name === 'asset-detail') return 'asset-detail'
@@ -71,6 +75,7 @@ const shellTitle = computed(() => {
   if (activeView.value === 'portfolio') return 'Portfólio Real'
   if (activeView.value === 'risk') return 'Risco e Exposição'
   if (activeView.value === 'performance') return 'Performance Real'
+  if (activeView.value === 'backtests') return 'Backtests'
   if (activeView.value === 'alerts') return 'Alertas Inteligentes'
   if (activeView.value === 'assets') return 'Gestão da Watchlist'
   if (activeView.value === 'asset-detail') return `Ativo ${selectedTicker.value}`
@@ -84,6 +89,7 @@ const shellSubtitle = computed(() => {
   if (activeView.value === 'portfolio') return 'Posições abertas/fechadas, saídas e simulação de carteira.'
   if (activeView.value === 'risk') return 'Configuração de risco, sizing, correlação e concentração.'
   if (activeView.value === 'performance') return 'Winrate, payoff, drawdown, curva de capital e breakdowns.'
+  if (activeView.value === 'backtests') return 'Execução e histórico de testes da estratégia em dados passados.'
   if (activeView.value === 'alerts') return 'Monitoramento operacional e leitura de alertas críticos.'
   if (activeView.value === 'assets') return 'Cadastro, monitoramento e sincronização de ativos.'
   if (activeView.value === 'asset-detail') return 'Leitura técnica detalhada para decisão tática.'
@@ -147,6 +153,7 @@ function navigateTo(viewKey) {
     portfolio: 'portfolio',
     risk: 'risk',
     performance: 'performance',
+    backtests: 'backtests',
     alerts: 'alerts',
     assets: 'assets',
     calls: 'calls',
@@ -264,6 +271,12 @@ onMounted(bootstrapSession)
 
     <PerformanceView
       v-else-if="activeView === 'performance'"
+      :api="auth.api"
+      @notify="notify"
+    />
+
+    <BacktestsView
+      v-else-if="activeView === 'backtests'"
       :api="auth.api"
       @notify="notify"
     />

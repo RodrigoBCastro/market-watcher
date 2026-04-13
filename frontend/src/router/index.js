@@ -28,6 +28,10 @@ const routes = [
     name: 'performance',
   },
   {
+    path: '/backtests',
+    name: 'backtests',
+  },
+  {
     path: '/alerts',
     name: 'alerts',
   },
