@@ -17,6 +17,8 @@ class RecalculateScoresJob implements ShouldQueue
 {
     use Queueable;
 
+    private const SCORE_LOOKBACK_CANDLES = 300;
+
     public int $tries = 2;
 
     public int $timeout = 240;
@@ -41,28 +43,35 @@ class RecalculateScoresJob implements ShouldQueue
             ->when($this->ticker !== null, static function ($query, string $ticker): void {
                 $query->where('ticker', strtoupper($ticker));
             })
-            ->with([
-                'quotes' => static function ($query): void {
-                    $query->orderBy('trade_date');
-                },
-                'indicators' => static function ($query): void {
-                    $query->orderBy('trade_date');
-                },
-            ])
-            ->get();
+            ->select(['id', 'ticker'])
+            ->orderBy('id')
+            ->cursor();
 
         foreach ($assets as $asset) {
             try {
-                $quotes = $asset->quotes->map(static fn ($quote): array => [
+                $quotes = $asset->quotes()
+                    ->orderByDesc('trade_date')
+                    ->limit(self::SCORE_LOOKBACK_CANDLES)
+                    ->get(['trade_date', 'open', 'high', 'low', 'close', 'volume'])
+                    ->reverse()
+                    ->values()
+                    ->map(static fn ($quote): array => [
                     'trade_date' => $quote->trade_date->toDateString(),
                     'open' => (float) $quote->open,
                     'high' => (float) $quote->high,
                     'low' => (float) $quote->low,
                     'close' => (float) $quote->close,
                     'volume' => (int) $quote->volume,
-                ])->all();
+                    ])->all();
 
-                $indicators = $asset->indicators->map(static fn ($row): array => $row->toArray())->all();
+                $indicators = $asset->indicators()
+                    ->orderByDesc('trade_date')
+                    ->limit(self::SCORE_LOOKBACK_CANDLES)
+                    ->get()
+                    ->reverse()
+                    ->values()
+                    ->map(static fn ($row): array => $row->toArray())
+                    ->all();
 
                 if ($quotes === [] || $indicators === []) {
                     $syncLogger->log($run, 'warning', "Sem dados suficientes para score de {$asset->ticker}");

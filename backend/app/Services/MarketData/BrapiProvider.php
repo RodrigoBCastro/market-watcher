@@ -51,7 +51,8 @@ class BrapiProvider implements MarketDataProviderInterface
 
         $from = $this->normalizeFromDate($fromDate);
         if ($from !== null) {
-            $query['from'] = $from;
+            $query['range'] = 'max';
+            $query['startDate'] = $from;
         } else {
             $query['range'] = $this->mapDaysToRange($days);
         }

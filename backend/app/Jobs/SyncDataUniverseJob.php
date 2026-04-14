@@ -69,14 +69,78 @@ class SyncDataUniverseJob implements ShouldQueue
             'assets_total' => $assets->count(),
         ]);
 
-        foreach ($assets->chunk($batchSize) as $chunk) {
-            [$chunkProcessed, $chunkFailed] = $this->syncChunk(
+        $stateByAssetId = $this->loadStateByAssetId($assets);
+        $bootstrapAssets = collect();
+        $rollingAssets = collect();
+
+        foreach ($assets as $asset) {
+            $state = $stateByAssetId->get((int) $asset->id);
+            $mode = $this->resolveMode($state, $fromDate);
+
+            if ($mode === 'bootstrap') {
+                $bootstrapAssets->push($asset);
+
+                continue;
+            }
+
+            $rollingAssets->push($asset);
+        }
+
+        $syncLogger->log($run, 'info', 'Distribuição de modo da sincronização.', [
+            'bootstrap_assets' => $bootstrapAssets->count(),
+            'rolling_assets' => $rollingAssets->count(),
+        ]);
+
+        if ($bootstrapAssets->isNotEmpty() && $fromDate !== null) {
+            [$bootstrapProcessed, $bootstrapFailed] = $this->syncAssets(
+                syncLogger: $syncLogger,
+                run: $run,
+                assets: $bootstrapAssets,
+                stateByAssetId: $stateByAssetId,
+                mode: 'bootstrap',
+                modeLabel: 'bootstrap_single',
+                fromDate: $fromDate,
+                quoteResolver: static fn (MonitoredAsset $asset): array => $provider->getHistoricalQuotes(
+                    strtoupper($asset->ticker),
+                    $days,
+                    $fromDate,
+                ),
+            );
+
+            $processed += $bootstrapProcessed;
+            $failed += $bootstrapFailed;
+        }
+
+        foreach ($rollingAssets->chunk($batchSize) as $chunk) {
+            $tickers = $chunk->map(static fn (MonitoredAsset $asset): string => strtoupper($asset->ticker))
+                ->values()
+                ->all();
+            $rollingBatchQuotes = $this->loadRollingBatchQuotes(
                 provider: $provider,
                 syncLogger: $syncLogger,
                 run: $run,
-                assetsChunk: $chunk,
+                tickers: $tickers,
                 days: $days,
+            );
+
+            [$chunkProcessed, $chunkFailed] = $this->syncAssets(
+                syncLogger: $syncLogger,
+                run: $run,
+                assets: $chunk,
+                stateByAssetId: $stateByAssetId,
+                mode: 'rolling',
+                modeLabel: 'rolling_batch',
                 fromDate: $fromDate,
+                quoteResolver: static function (MonitoredAsset $asset) use ($provider, $days, $rollingBatchQuotes): array {
+                    $ticker = strtoupper($asset->ticker);
+                    $quotes = $rollingBatchQuotes[$ticker] ?? null;
+
+                    if ($quotes !== null) {
+                        return $quotes;
+                    }
+
+                    return $provider->getHistoricalQuotes($ticker, $days, null);
+                },
             );
 
             $processed += $chunkProcessed;
@@ -95,114 +159,68 @@ class SyncDataUniverseJob implements ShouldQueue
     }
 
     /**
-     * @param  Collection<int, MonitoredAsset>  $assetsChunk
-     * @return array{0:int,1:int}
+     * @param  Collection<int, MonitoredAsset>  $assets
+     * @return Collection<int, AssetHistorySyncState>
      */
-    private function syncChunk(
-        MarketDataProviderInterface $provider,
-        SyncLogger $syncLogger,
-        SyncRun $run,
-        Collection $assetsChunk,
-        int $days,
-        ?string $fromDate,
-    ): array {
-        $processed = 0;
-        $failed = 0;
-        $assetIds = $assetsChunk->pluck('id')
+    private function loadStateByAssetId(Collection $assets): Collection
+    {
+        $assetIds = $assets->pluck('id')
             ->map(static fn (mixed $id): int => (int) $id)
             ->filter(static fn (int $id): bool => $id > 0)
             ->values()
             ->all();
 
-        $stateByAssetId = AssetHistorySyncState::query()
+        if ($assetIds === []) {
+            return collect();
+        }
+
+        return AssetHistorySyncState::query()
             ->whereIn('monitored_asset_id', $assetIds)
             ->get()
             ->keyBy('monitored_asset_id');
+    }
 
-        $bootstrapTickers = [];
-        $rollingTickers = [];
-        $modeByAssetId = [];
+    /**
+     * @param  Collection<int, MonitoredAsset>  $assets
+     * @param  Collection<int, AssetHistorySyncState>  $stateByAssetId
+     * @return array{0:int,1:int}
+     */
+    private function syncAssets(
+        SyncLogger $syncLogger,
+        SyncRun $run,
+        Collection $assets,
+        Collection $stateByAssetId,
+        string $mode,
+        string $modeLabel,
+        ?string $fromDate,
+        callable $quoteResolver,
+    ): array {
+        $processed = 0;
+        $failed = 0;
 
-        foreach ($assetsChunk as $asset) {
-            $ticker = strtoupper($asset->ticker);
-            $state = $stateByAssetId->get((int) $asset->id);
-            $mode = $this->resolveMode($state, $fromDate);
-            $modeByAssetId[(int) $asset->id] = $mode;
-            if ($mode === 'bootstrap') {
-                $bootstrapTickers[] = $ticker;
-
-                continue;
-            }
-
-            $rollingTickers[] = $ticker;
-        }
-
-        $bootstrapTickerSet = array_fill_keys($bootstrapTickers, true);
-        $bootstrapBatchQuotes = $this->loadBatchQuotes(
-            provider: $provider,
-            syncLogger: $syncLogger,
-            run: $run,
-            tickers: $bootstrapTickers,
-            days: $days,
-            fromDate: $fromDate,
-            mode: 'bootstrap',
-        );
-        $rollingBatchQuotes = $this->loadBatchQuotes(
-            provider: $provider,
-            syncLogger: $syncLogger,
-            run: $run,
-            tickers: $rollingTickers,
-            days: $days,
-            fromDate: null,
-            mode: 'rolling',
-        );
-
-        foreach ($assetsChunk as $asset) {
+        foreach ($assets as $asset) {
             try {
-                $ticker = strtoupper($asset->ticker);
-                $mode = $modeByAssetId[(int) $asset->id] ?? 'rolling';
-                $state = $stateByAssetId->get((int) $asset->id);
-                $useFromDate = $mode === 'bootstrap' && isset($bootstrapTickerSet[$ticker]) && $fromDate !== null;
-                $quotes = $useFromDate
-                    ? ($bootstrapBatchQuotes[$ticker] ?? null)
-                    : ($rollingBatchQuotes[$ticker] ?? null);
-
-                if ($quotes === null) {
-                    $quotes = $provider->getHistoricalQuotes($ticker, $days, $useFromDate ? $fromDate : null);
-                }
-
-                $persisted = $this->persistQuotes((int) $asset->id, $quotes);
-                $processed += (int) $persisted['processed'];
-
-                $updatedState = $this->updateSyncStateAfterSuccess(
-                    monitoredAssetId: (int) $asset->id,
-                    state: $state,
+                /** @var array<int, MarketQuoteDTO> $quotes */
+                $quotes = $quoteResolver($asset);
+                $processed += $this->handleSyncSuccess(
+                    syncLogger: $syncLogger,
+                    run: $run,
+                    asset: $asset,
+                    stateByAssetId: $stateByAssetId,
                     mode: $mode,
+                    modeLabel: $modeLabel,
                     fromDate: $fromDate,
-                    earliestFromRun: $persisted['earliest_trade_date'],
-                    latestFromRun: $persisted['latest_trade_date'],
+                    quotes: $quotes,
                 );
-                $stateByAssetId->put((int) $asset->id, $updatedState);
-
-                $syncLogger->log($run, 'info', "Data Universe sincronizado para {$asset->ticker}", [
-                    'records' => count($quotes),
-                    'mode' => $mode,
-                    'state_status' => $updatedState->status,
-                ]);
             } catch (Throwable $exception) {
-                $failed++;
-                $state = $stateByAssetId->get((int) $asset->id);
-                $updatedState = $this->updateSyncStateAfterFailure(
-                    monitoredAssetId: (int) $asset->id,
-                    state: $state,
+                $failed += $this->handleSyncFailure(
+                    syncLogger: $syncLogger,
+                    run: $run,
+                    asset: $asset,
+                    stateByAssetId: $stateByAssetId,
                     errorMessage: $exception->getMessage(),
                     fromDate: $fromDate,
                 );
-                $stateByAssetId->put((int) $asset->id, $updatedState);
-
-                $syncLogger->log($run, 'error', "Falha no Data Universe para {$asset->ticker}", [
-                    'error' => $exception->getMessage(),
-                ]);
             }
         }
 
@@ -210,33 +228,93 @@ class SyncDataUniverseJob implements ShouldQueue
     }
 
     /**
+     * @param  Collection<int, AssetHistorySyncState>  $stateByAssetId
+     * @param  array<int, MarketQuoteDTO>  $quotes
+     */
+    private function handleSyncSuccess(
+        SyncLogger $syncLogger,
+        SyncRun $run,
+        MonitoredAsset $asset,
+        Collection $stateByAssetId,
+        string $mode,
+        string $modeLabel,
+        ?string $fromDate,
+        array $quotes,
+    ): int {
+        $state = $stateByAssetId->get((int) $asset->id);
+        $persisted = $this->persistQuotes((int) $asset->id, $quotes);
+
+        $updatedState = $this->updateSyncStateAfterSuccess(
+            monitoredAssetId: (int) $asset->id,
+            state: $state,
+            mode: $mode,
+            fromDate: $fromDate,
+            earliestFromRun: $persisted['earliest_trade_date'],
+            latestFromRun: $persisted['latest_trade_date'],
+        );
+        $stateByAssetId->put((int) $asset->id, $updatedState);
+
+        $syncLogger->log($run, 'info', "Data Universe sincronizado para {$asset->ticker}", [
+            'records' => count($quotes),
+            'mode' => $modeLabel,
+            'state_status' => $updatedState->status,
+        ]);
+
+        return (int) $persisted['processed'];
+    }
+
+    /**
+     * @param  Collection<int, AssetHistorySyncState>  $stateByAssetId
+     */
+    private function handleSyncFailure(
+        SyncLogger $syncLogger,
+        SyncRun $run,
+        MonitoredAsset $asset,
+        Collection $stateByAssetId,
+        string $errorMessage,
+        ?string $fromDate,
+    ): int {
+        $state = $stateByAssetId->get((int) $asset->id);
+        $updatedState = $this->updateSyncStateAfterFailure(
+            monitoredAssetId: (int) $asset->id,
+            state: $state,
+            errorMessage: $errorMessage,
+            fromDate: $fromDate,
+        );
+        $stateByAssetId->put((int) $asset->id, $updatedState);
+
+        $syncLogger->log($run, 'error', "Falha no Data Universe para {$asset->ticker}", [
+            'error' => $errorMessage,
+        ]);
+
+        return 1;
+    }
+
+    /**
      * @param  array<int, string>  $tickers
      * @return array<string, array<int, \App\DTOs\MarketQuoteDTO>>
      */
-    private function loadBatchQuotes(
+    private function loadRollingBatchQuotes(
         MarketDataProviderInterface $provider,
         SyncLogger $syncLogger,
         SyncRun $run,
         array $tickers,
         int $days,
-        ?string $fromDate,
-        string $mode,
     ): array {
         if ($tickers === []) {
             return [];
         }
 
         try {
-            return $provider->getHistoricalQuotesBatch($tickers, $days, $fromDate);
+            return $provider->getHistoricalQuotesBatch($tickers, $days, null);
         } catch (Throwable $exception) {
             $syncLogger->log(
                 run: $run,
                 level: 'warning',
-                message: "Falha no lote {$mode} da sincronização. Fallback para sync individual.",
+                message: 'Falha no lote rolling da sincronização. Fallback para sync individual.',
                 context: [
                     'tickers' => $tickers,
                     'days' => $days,
-                    'from_date' => $fromDate,
                     'error' => $exception->getMessage(),
                 ],
             );
