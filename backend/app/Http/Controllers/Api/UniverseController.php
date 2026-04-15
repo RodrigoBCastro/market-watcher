@@ -104,5 +104,10 @@ class UniverseController extends Controller
     {
         return response()->json($this->marketUniverseService->statusByTicker($ticker));
     }
+
+    public function diagnose(): JsonResponse
+    {
+        return response()->json($this->marketUniverseService->diagnoseEligibleUniverse());
+    }
 }
 

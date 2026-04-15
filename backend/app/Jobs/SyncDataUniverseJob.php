@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Contracts\MarketDataProviderInterface;
+use App\Contracts\QuoteImporterInterface;
 use App\DTOs\MarketQuoteDTO;
 use App\Models\AssetHistorySyncState;
-use App\Models\AssetQuote;
 use App\Models\MonitoredAsset;
 use App\Models\SyncRun;
 use App\Services\MarketData\SyncLogger;
@@ -25,12 +25,15 @@ class SyncDataUniverseJob implements ShouldQueue
 
     public int $timeout = 180;
 
+    private QuoteImporterInterface $quoteImporter;
+
     public function __construct(public readonly ?string $ticker = null)
     {
     }
 
-    public function handle(MarketDataProviderInterface $provider, SyncLogger $syncLogger): void
+    public function handle(MarketDataProviderInterface $provider, SyncLogger $syncLogger, QuoteImporterInterface $quoteImporter): void
     {
+        $this->quoteImporter = $quoteImporter;
         $run = $syncLogger->start($this->ticker !== null ? 'sync_data_universe_single' : 'sync_data_universe');
 
         $processed = 0;
@@ -52,9 +55,10 @@ class SyncDataUniverseJob implements ShouldQueue
         $assets = MonitoredAsset::query()
             ->where('is_active', true)
             ->where('collect_data', true)
-            ->when($this->ticker !== null, static function ($query, string $ticker): void {
+            ->when($this->ticker, static function ($query, string $ticker): void {
                 $query->where('ticker', strtoupper($ticker));
             })
+            ->select(['id', 'ticker'])
             ->orderBy('ticker')
             ->get();
 
@@ -242,15 +246,15 @@ class SyncDataUniverseJob implements ShouldQueue
         array $quotes,
     ): int {
         $state = $stateByAssetId->get((int) $asset->id);
-        $persisted = $this->persistQuotes((int) $asset->id, $quotes);
+        $result = $this->quoteImporter->import((int) $asset->id, $quotes);
 
         $updatedState = $this->updateSyncStateAfterSuccess(
             monitoredAssetId: (int) $asset->id,
             state: $state,
             mode: $mode,
             fromDate: $fromDate,
-            earliestFromRun: $persisted['earliest_trade_date'],
-            latestFromRun: $persisted['latest_trade_date'],
+            earliestFromRun: $result->earliestTradeDate,
+            latestFromRun: $result->latestTradeDate,
         );
         $stateByAssetId->put((int) $asset->id, $updatedState);
 
@@ -260,7 +264,7 @@ class SyncDataUniverseJob implements ShouldQueue
             'state_status' => $updatedState->status,
         ]);
 
-        return (int) $persisted['processed'];
+        return $result->processed;
     }
 
     /**
@@ -321,44 +325,6 @@ class SyncDataUniverseJob implements ShouldQueue
 
             return [];
         }
-    }
-
-    /**
-     * @param  array<int, MarketQuoteDTO>  $quotes
-     * @return array{processed:int, earliest_trade_date:?string, latest_trade_date:?string}
-     */
-    private function persistQuotes(int $assetId, array $quotes): array
-    {
-        $processed = 0;
-        $earliestTradeDate = null;
-        $latestTradeDate = null;
-
-        foreach ($quotes as $quote) {
-            $tradeDate = $quote->tradeDate->toDateString();
-
-            AssetQuote::query()->updateOrCreate([
-                'monitored_asset_id' => $assetId,
-                'trade_date' => $tradeDate,
-            ], [
-                'open' => $quote->open,
-                'high' => $quote->high,
-                'low' => $quote->low,
-                'close' => $quote->close,
-                'adjusted_close' => $quote->adjustedClose,
-                'volume' => $quote->volume,
-                'source' => $quote->source,
-            ]);
-            $processed++;
-
-            $earliestTradeDate = $this->minDate($earliestTradeDate, $tradeDate);
-            $latestTradeDate = $this->maxDate($latestTradeDate, $tradeDate);
-        }
-
-        return [
-            'processed' => $processed,
-            'earliest_trade_date' => $earliestTradeDate,
-            'latest_trade_date' => $latestTradeDate,
-        ];
     }
 
     private function resolveDays(): int

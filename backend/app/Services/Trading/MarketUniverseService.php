@@ -161,10 +161,9 @@ class MarketUniverseService implements MarketUniverseServiceInterface
     {
         $cfg = config('market.universes.eligible');
         $minHistory = (int) ($cfg['min_history_days'] ?? 90);
-        $minAvgVolume = (float) ($cfg['min_avg_daily_volume'] ?? 350000.0);
-        $minFinancialVolume = (float) ($cfg['min_avg_daily_financial_volume'] ?? 12000000.0);
-        $minTrades = (float) ($cfg['min_avg_trades_count'] ?? 300000.0);
-        $maxSpread = (float) ($cfg['max_avg_spread_percent'] ?? 3.0);
+        $minAvgVolume = (float) ($cfg['min_avg_daily_volume'] ?? 200000.0);
+        $minFinancialVolume = (float) ($cfg['min_avg_daily_financial_volume'] ?? 5000000.0);
+        $maxSpread = (float) ($cfg['max_avg_spread_percent'] ?? 5.5);
         $minVolatility = (float) ($cfg['min_volatility_20'] ?? 1.1);
         $maxVolatility = (float) ($cfg['max_volatility_20'] ?? 8.5);
         $minOperability = (float) ($cfg['min_operability_score'] ?? 55.0);
@@ -246,9 +245,6 @@ class MarketUniverseService implements MarketUniverseServiceInterface
             if ($metrics['avg_daily_financial_volume_20'] < $minFinancialVolume) {
                 $reasons[] = 'volume financeiro médio abaixo do mínimo';
             }
-            if ($metrics['avg_trades_count_20'] < $minTrades) {
-                $reasons[] = 'número médio de negócios (proxy) abaixo do mínimo';
-            }
             if ($metrics['avg_spread_percent'] > $maxSpread) {
                 $reasons[] = 'spread médio (proxy) acima do limite';
             }
@@ -298,6 +294,104 @@ class MarketUniverseService implements MarketUniverseServiceInterface
             'promoted' => $promoted,
             'demoted' => $demoted,
             'timestamp' => now()->toIso8601String(),
+        ];
+    }
+
+    public function diagnoseEligibleUniverse(): array
+    {
+        $cfg            = config('market.universes.eligible');
+        $minHistory     = (int)   ($cfg['min_history_days']                       ?? 90);
+        $minAvgVolume   = (float) ($cfg['min_avg_daily_volume']                   ?? 200000.0);
+        $minFinancial   = (float) ($cfg['min_avg_daily_financial_volume']         ?? 5000000.0);
+        $maxSpread      = (float) ($cfg['max_avg_spread_percent']                 ?? 5.5);
+        $minVol         = (float) ($cfg['min_volatility_20']                      ?? 1.1);
+        $maxVol         = (float) ($cfg['max_volatility_20']                      ?? 8.5);
+        $minOperability = (float) ($cfg['min_operability_score']                  ?? 55.0);
+
+        $assets = MonitoredAsset::query()
+            ->where('is_active', true)
+            ->orderBy('ticker')
+            ->get();
+
+        $results       = [];
+        $failureCounts = [];
+
+        foreach ($assets as $asset) {
+            if (! $asset->collect_data) {
+                $results[] = [
+                    'ticker'        => $asset->ticker,
+                    'eligible'      => false,
+                    'collect_data'  => false,
+                    'metrics'       => null,
+                    'failed_checks' => ['collect_data desativado'],
+                    'passed_checks' => [],
+                ];
+                $failureCounts['collect_data desativado'] = ($failureCounts['collect_data desativado'] ?? 0) + 1;
+                continue;
+            }
+
+            $quotes = AssetQuote::query()
+                ->where('monitored_asset_id', $asset->id)
+                ->orderByDesc('trade_date')
+                ->limit(max(120, $minHistory))
+                ->get()
+                ->reverse()
+                ->values();
+
+            $metrics      = $this->calculateEligibilityMetrics($quotes);
+            $failedChecks = [];
+            $passedChecks = [];
+
+            $checks = [
+                'histórico insuficiente'                   => $metrics['history_count'] < $minHistory,
+                'volume médio diário abaixo do mínimo'     => $metrics['avg_daily_volume_20'] < $minAvgVolume,
+                'volume financeiro médio abaixo do mínimo' => $metrics['avg_daily_financial_volume_20'] < $minFinancial,
+                'spread médio acima do limite'             => $metrics['avg_spread_percent'] > $maxSpread,
+                'volatilidade fora da faixa operacional'   => $metrics['volatility_20'] < $minVol || $metrics['volatility_20'] > $maxVol,
+                'operability score abaixo do mínimo'       => $metrics['operability_score'] < $minOperability,
+            ];
+
+            foreach ($checks as $label => $failed) {
+                if ($failed) {
+                    $failedChecks[]            = $label;
+                    $failureCounts[$label]     = ($failureCounts[$label] ?? 0) + 1;
+                } else {
+                    $passedChecks[] = $label;
+                }
+            }
+
+            $results[] = [
+                'ticker'        => $asset->ticker,
+                'eligible'      => $failedChecks === [],
+                'collect_data'  => true,
+                'metrics'       => $metrics,
+                'failed_checks' => $failedChecks,
+                'passed_checks' => $passedChecks,
+            ];
+        }
+
+        $total    = count($results);
+        $eligible = count(array_filter($results, static fn (array $r): bool => (bool) $r['eligible']));
+
+        arsort($failureCounts);
+
+        return [
+            'thresholds'     => [
+                'min_history_days'               => $minHistory,
+                'min_avg_daily_volume'           => $minAvgVolume,
+                'min_avg_daily_financial_volume' => $minFinancial,
+                'max_avg_spread_percent'         => $maxSpread,
+                'min_volatility_20'              => $minVol,
+                'max_volatility_20'              => $maxVol,
+                'min_operability_score'          => $minOperability,
+            ],
+            'summary'        => [
+                'total'      => $total,
+                'eligible'   => $eligible,
+                'ineligible' => $total - $eligible,
+            ],
+            'failure_counts' => $failureCounts,
+            'assets'         => $results,
         ];
     }
 

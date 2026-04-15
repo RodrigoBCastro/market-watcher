@@ -27,6 +27,14 @@ interface MarketUniverseServiceInterface
     public function recalculateTradingUniverse(?int $changedByUserId = null): array;
 
     /**
+     * Diagnóstico read-only: retorna métricas e motivos de falha por ativo,
+     * sem alterar nenhum registro no banco.
+     *
+     * @return array<string, mixed>
+     */
+    public function diagnoseEligibleUniverse(): array;
+
+    /**
      * @return array<string, mixed>
      */
     public function updateMembership(

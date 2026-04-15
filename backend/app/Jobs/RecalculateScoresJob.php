@@ -40,7 +40,7 @@ class RecalculateScoresJob implements ShouldQueue
         $assets = MonitoredAsset::query()
             ->where('is_active', true)
             ->where('eligible_for_calls', true)
-            ->when($this->ticker !== null, static function ($query, string $ticker): void {
+            ->when($this->ticker, static function ($query, string $ticker): void {
                 $query->where('ticker', strtoupper($ticker));
             })
             ->select(['id', 'ticker'])

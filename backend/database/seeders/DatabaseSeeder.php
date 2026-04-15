@@ -15,10 +15,10 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             AdminUserSeeder::class,
-            MonitoredAssetSeeder::class,
-            UniverseMembershipSeeder::class,
-            AssetSectorMappingSeeder::class,
-            MacroSnapshotSeeder::class,
+//            MonitoredAssetSeeder::class,
+//            UniverseMembershipSeeder::class,
+//            AssetSectorMappingSeeder::class,
+//            MacroSnapshotSeeder::class,
             SetupMetricSeeder::class,
             RiskSettingsSeeder::class,
         ]);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Contracts\IndicatorCalculatorInterface;
+use App\Models\AssetQuote;
 use App\Models\MonitoredAsset;
 use App\Models\TechnicalIndicator;
 use App\Services\MarketData\SyncLogger;
@@ -31,27 +32,34 @@ class RecalculateIndicatorsJob implements ShouldQueue
         $processed = 0;
         $failed = 0;
 
+        // cursor() itera um ativo por vez sem carregar todos em memória.
+        // Quotes são buscadas por ativo individualmente com limite de 600 candles
+        // (suficiente para SMA200 + 400 candles de histórico válido).
         $assets = MonitoredAsset::query()
             ->where('is_active', true)
             ->where('eligible_for_analysis', true)
-            ->when($this->ticker !== null, static function ($query, string $ticker): void {
+            ->when($this->ticker, static function ($query, string $ticker): void {
                 $query->where('ticker', strtoupper($ticker));
             })
-            ->with(['quotes' => static function ($query): void {
-                $query->orderBy('trade_date');
-            }])
-            ->get();
+            ->select(['id', 'ticker'])
+            ->orderBy('id')
+            ->cursor();
 
         foreach ($assets as $asset) {
             try {
-                $quotes = $asset->quotes->map(static fn ($quote): array => [
-                    'trade_date' => $quote->trade_date->toDateString(),
-                    'open' => (float) $quote->open,
-                    'high' => (float) $quote->high,
-                    'low' => (float) $quote->low,
-                    'close' => (float) $quote->close,
-                    'volume' => (int) $quote->volume,
-                ])->all();
+                $quotes = AssetQuote::query()
+                    ->where('monitored_asset_id', $asset->id)
+                    ->orderBy('trade_date')
+                    ->limit(600)
+                    ->get(['trade_date', 'open', 'high', 'low', 'close', 'volume'])
+                    ->map(static fn ($quote): array => [
+                        'trade_date' => $quote->trade_date->toDateString(),
+                        'open'       => (float) $quote->open,
+                        'high'       => (float) $quote->high,
+                        'low'        => (float) $quote->low,
+                        'close'      => (float) $quote->close,
+                        'volume'     => (int) $quote->volume,
+                    ])->all();
 
                 if (count($quotes) < 20) {
                     $syncLogger->log($run, 'warning', "Histórico insuficiente para indicadores de {$asset->ticker}");

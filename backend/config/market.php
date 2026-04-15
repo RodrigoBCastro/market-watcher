@@ -19,10 +19,11 @@ return [
     'universes' => [
         'eligible' => [
             'min_history_days' => (int) env('UNIVERSE_ELIGIBLE_MIN_HISTORY_DAYS', 90),
-            'min_avg_daily_volume' => (float) env('UNIVERSE_ELIGIBLE_MIN_AVG_DAILY_VOLUME', 350000),
-            'min_avg_daily_financial_volume' => (float) env('UNIVERSE_ELIGIBLE_MIN_AVG_DAILY_FINANCIAL_VOLUME', 12000000),
-            'min_avg_trades_count' => (float) env('UNIVERSE_ELIGIBLE_MIN_AVG_TRADES_COUNT', 300000),
-            'max_avg_spread_percent' => (float) env('UNIVERSE_ELIGIBLE_MAX_AVG_SPREAD_PERCENT', 3.0),
+            'min_avg_daily_volume' => (float) env('UNIVERSE_ELIGIBLE_MIN_AVG_DAILY_VOLUME', 200000),
+            'min_avg_daily_financial_volume' => (float) env('UNIVERSE_ELIGIBLE_MIN_AVG_DAILY_FINANCIAL_VOLUME', 5000000),
+            // Spread proxy: range intraday (high - low) / close × 100.
+            // Não representa spread bid-ask real. Threshold calibrado para range diário do mercado brasileiro.
+            'max_avg_spread_percent' => (float) env('UNIVERSE_ELIGIBLE_MAX_AVG_SPREAD_PERCENT', 5.5),
             'min_volatility_20' => (float) env('UNIVERSE_ELIGIBLE_MIN_VOLATILITY_20', 1.1),
             'max_volatility_20' => (float) env('UNIVERSE_ELIGIBLE_MAX_VOLATILITY_20', 8.5),
             'min_operability_score' => (float) env('UNIVERSE_ELIGIBLE_MIN_OPERABILITY_SCORE', 55.0),

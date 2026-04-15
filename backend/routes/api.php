@@ -59,6 +59,7 @@ Route::middleware('api.token')->group(function (): void {
     Route::get('/universes/data', [UniverseController::class, 'data']);
     Route::get('/universes/eligible', [UniverseController::class, 'eligible']);
     Route::get('/universes/trading', [UniverseController::class, 'trading']);
+    Route::get('/universes/diagnose', [UniverseController::class, 'diagnose']);
     Route::post('/universes/recalculate-eligible', [UniverseController::class, 'recalculateEligible']);
     Route::post('/universes/recalculate-trading', [UniverseController::class, 'recalculateTrading']);
 

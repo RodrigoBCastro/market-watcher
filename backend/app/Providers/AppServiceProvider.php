@@ -13,6 +13,7 @@ use App\Contracts\IndicatorCalculatorInterface;
 use App\Contracts\MarketUniverseServiceInterface;
 use App\Contracts\MarketDataProviderInterface;
 use App\Contracts\MarketRegimeServiceInterface;
+use App\Contracts\QuoteImporterInterface;
 use App\Contracts\ProbabilisticEngineInterface;
 use App\Contracts\PerformanceAnalyticsServiceInterface;
 use App\Contracts\PortfolioRiskServiceInterface;
@@ -35,6 +36,7 @@ use App\Services\Execution\NullBrokerIntegration;
 use App\Services\Indicators\IndicatorPipeline;
 use App\Services\MarketData\AssetMasterRegistryService;
 use App\Services\MarketData\BrapiProvider;
+use App\Services\MarketData\QuoteImporter;
 use App\Services\Metrics\SetupMetricsService;
 use App\Services\Optimization\ScoreOptimizerService;
 use App\Services\Scoring\CompositeScoreEngine;
@@ -60,6 +62,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(MarketDataProviderInterface::class, BrapiProvider::class);
+        $this->app->bind(QuoteImporterInterface::class, QuoteImporter::class);
         $this->app->bind(AssetMasterRegistryServiceInterface::class, AssetMasterRegistryService::class);
         $this->app->bind(IndicatorCalculatorInterface::class, IndicatorPipeline::class);
         $this->app->bind(MarketUniverseServiceInterface::class, MarketUniverseService::class);
