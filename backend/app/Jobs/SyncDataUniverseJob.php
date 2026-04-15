@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Contracts\AssetQuoteRepositoryInterface;
+use App\Contracts\AssetHistorySyncStateRepositoryInterface;
 use App\Contracts\MarketDataProviderInterface;
-use App\Contracts\QuoteImporterInterface;
+use App\Contracts\MonitoredAssetRepositoryInterface;
 use App\DTOs\MarketQuoteDTO;
 use App\Models\AssetHistorySyncState;
 use App\Models\MonitoredAsset;
@@ -25,24 +27,37 @@ class SyncDataUniverseJob implements ShouldQueue
 
     public int $timeout = 180;
 
-    private QuoteImporterInterface $quoteImporter;
+    private AssetQuoteRepositoryInterface $assetQuoteRepository;
+
+    private AssetHistorySyncStateRepositoryInterface $syncStateRepository;
+
+    private MonitoredAssetRepositoryInterface $monitoredAssetRepository;
 
     public function __construct(public readonly ?string $ticker = null)
     {
     }
 
-    public function handle(MarketDataProviderInterface $provider, SyncLogger $syncLogger, QuoteImporterInterface $quoteImporter): void
-    {
-        $this->quoteImporter = $quoteImporter;
+    public function handle(
+        MarketDataProviderInterface $provider,
+        SyncLogger $syncLogger,
+        AssetQuoteRepositoryInterface $assetQuoteRepository,
+        AssetHistorySyncStateRepositoryInterface $syncStateRepository,
+        MonitoredAssetRepositoryInterface $monitoredAssetRepository,
+    ): void {
+        $this->assetQuoteRepository     = $assetQuoteRepository;
+        $this->syncStateRepository      = $syncStateRepository;
+        $this->monitoredAssetRepository = $monitoredAssetRepository;
+
         $run = $syncLogger->start($this->ticker !== null ? 'sync_data_universe_single' : 'sync_data_universe');
 
         $processed = 0;
-        $failed = 0;
+        $failed    = 0;
+
         try {
-            $days = $this->resolveDays();
+            $days          = $this->resolveDays();
             $startYearsBack = $this->resolveStartYearsBack();
-            $fromDate = $this->resolveFromDate($startYearsBack);
-            $batchSize = $this->resolveBatchSize();
+            $fromDate      = $this->resolveFromDate($startYearsBack);
+            $batchSize     = $this->resolveBatchSize();
         } catch (Throwable $exception) {
             $syncLogger->log($run, 'error', 'Parâmetros inválidos para sincronização do Data Universe.', [
                 'error' => $exception->getMessage(),
@@ -52,38 +67,28 @@ class SyncDataUniverseJob implements ShouldQueue
             return;
         }
 
-        $assets = MonitoredAsset::query()
-            ->where('is_active', true)
-            ->where('collect_data', true)
-            ->when($this->ticker, static function ($query, string $ticker): void {
-                $query->where('ticker', strtoupper($ticker));
-            })
-            ->select(['id', 'ticker'])
-            ->orderBy('ticker')
-            ->get();
-
+        $assets   = $this->monitoredAssetRepository->findActiveForDataCollection($this->ticker);
         $fromMode = $fromDate === null ? 'disabled' : 'years_back';
 
         $syncLogger->log($run, 'info', 'Parâmetros de sincronização do Data Universe.', [
-            'asset_days' => $days,
-            'from_date' => $fromDate,
-            'from_mode' => $fromMode,
+            'asset_days'    => $days,
+            'from_date'     => $fromDate,
+            'from_mode'     => $fromMode,
             'start_years_back' => $startYearsBack,
-            'batch_size' => $batchSize,
-            'assets_total' => $assets->count(),
+            'batch_size'    => $batchSize,
+            'assets_total'  => $assets->count(),
         ]);
 
-        $stateByAssetId = $this->loadStateByAssetId($assets);
+        $stateByAssetId  = $this->loadStateByAssetId($assets);
         $bootstrapAssets = collect();
-        $rollingAssets = collect();
+        $rollingAssets   = collect();
 
         foreach ($assets as $asset) {
             $state = $stateByAssetId->get((int) $asset->id);
-            $mode = $this->resolveMode($state, $fromDate);
+            $mode  = $this->resolveMode($state, $fromDate);
 
             if ($mode === 'bootstrap') {
                 $bootstrapAssets->push($asset);
-
                 continue;
             }
 
@@ -92,7 +97,7 @@ class SyncDataUniverseJob implements ShouldQueue
 
         $syncLogger->log($run, 'info', 'Distribuição de modo da sincronização.', [
             'bootstrap_assets' => $bootstrapAssets->count(),
-            'rolling_assets' => $rollingAssets->count(),
+            'rolling_assets'   => $rollingAssets->count(),
         ]);
 
         if ($bootstrapAssets->isNotEmpty() && $fromDate !== null) {
@@ -112,13 +117,15 @@ class SyncDataUniverseJob implements ShouldQueue
             );
 
             $processed += $bootstrapProcessed;
-            $failed += $bootstrapFailed;
+            $failed    += $bootstrapFailed;
         }
 
         foreach ($rollingAssets->chunk($batchSize) as $chunk) {
-            $tickers = $chunk->map(static fn (MonitoredAsset $asset): string => strtoupper($asset->ticker))
+            $tickers = $chunk
+                ->map(static fn (MonitoredAsset $asset): string => strtoupper($asset->ticker))
                 ->values()
                 ->all();
+
             $rollingBatchQuotes = $this->loadRollingBatchQuotes(
                 provider: $provider,
                 syncLogger: $syncLogger,
@@ -148,7 +155,7 @@ class SyncDataUniverseJob implements ShouldQueue
             );
 
             $processed += $chunkProcessed;
-            $failed += $chunkFailed;
+            $failed    += $chunkFailed;
         }
 
         $status = $failed > 0 ? ($processed > 0 ? 'partial' : 'failed') : 'success';
@@ -168,25 +175,19 @@ class SyncDataUniverseJob implements ShouldQueue
      */
     private function loadStateByAssetId(Collection $assets): Collection
     {
-        $assetIds = $assets->pluck('id')
+        $assetIds = $assets
+            ->pluck('id')
             ->map(static fn (mixed $id): int => (int) $id)
             ->filter(static fn (int $id): bool => $id > 0)
             ->values()
             ->all();
 
-        if ($assetIds === []) {
-            return collect();
-        }
-
-        return AssetHistorySyncState::query()
-            ->whereIn('monitored_asset_id', $assetIds)
-            ->get()
-            ->keyBy('monitored_asset_id');
+        return $this->syncStateRepository->loadByAssetIds($assetIds);
     }
 
     /**
-     * @param  Collection<int, MonitoredAsset>  $assets
-     * @param  Collection<int, AssetHistorySyncState>  $stateByAssetId
+     * @param  Collection<int, MonitoredAsset>             $assets
+     * @param  Collection<int, AssetHistorySyncState>      $stateByAssetId
      * @return array{0:int,1:int}
      */
     private function syncAssets(
@@ -200,7 +201,7 @@ class SyncDataUniverseJob implements ShouldQueue
         callable $quoteResolver,
     ): array {
         $processed = 0;
-        $failed = 0;
+        $failed    = 0;
 
         foreach ($assets as $asset) {
             try {
@@ -233,7 +234,7 @@ class SyncDataUniverseJob implements ShouldQueue
 
     /**
      * @param  Collection<int, AssetHistorySyncState>  $stateByAssetId
-     * @param  array<int, MarketQuoteDTO>  $quotes
+     * @param  array<int, MarketQuoteDTO>               $quotes
      */
     private function handleSyncSuccess(
         SyncLogger $syncLogger,
@@ -245,8 +246,8 @@ class SyncDataUniverseJob implements ShouldQueue
         ?string $fromDate,
         array $quotes,
     ): int {
-        $state = $stateByAssetId->get((int) $asset->id);
-        $result = $this->quoteImporter->import((int) $asset->id, $quotes);
+        $state  = $stateByAssetId->get((int) $asset->id);
+        $result = $this->assetQuoteRepository->upsertBatch((int) $asset->id, $quotes);
 
         $updatedState = $this->updateSyncStateAfterSuccess(
             monitoredAssetId: (int) $asset->id,
@@ -259,8 +260,8 @@ class SyncDataUniverseJob implements ShouldQueue
         $stateByAssetId->put((int) $asset->id, $updatedState);
 
         $syncLogger->log($run, 'info', "Data Universe sincronizado para {$asset->ticker}", [
-            'records' => count($quotes),
-            'mode' => $modeLabel,
+            'records'      => count($quotes),
+            'mode'         => $modeLabel,
             'state_status' => $updatedState->status,
         ]);
 
@@ -278,7 +279,7 @@ class SyncDataUniverseJob implements ShouldQueue
         string $errorMessage,
         ?string $fromDate,
     ): int {
-        $state = $stateByAssetId->get((int) $asset->id);
+        $state        = $stateByAssetId->get((int) $asset->id);
         $updatedState = $this->updateSyncStateAfterFailure(
             monitoredAssetId: (int) $asset->id,
             state: $state,
@@ -296,7 +297,7 @@ class SyncDataUniverseJob implements ShouldQueue
 
     /**
      * @param  array<int, string>  $tickers
-     * @return array<string, array<int, \App\DTOs\MarketQuoteDTO>>
+     * @return array<string, array<int, MarketQuoteDTO>>
      */
     private function loadRollingBatchQuotes(
         MarketDataProviderInterface $provider,
@@ -318,8 +319,8 @@ class SyncDataUniverseJob implements ShouldQueue
                 message: 'Falha no lote rolling da sincronização. Fallback para sync individual.',
                 context: [
                     'tickers' => $tickers,
-                    'days' => $days,
-                    'error' => $exception->getMessage(),
+                    'days'    => $days,
+                    'error'   => $exception->getMessage(),
                 ],
             );
 
@@ -402,37 +403,37 @@ class SyncDataUniverseJob implements ShouldQueue
         ?string $earliestFromRun,
         ?string $latestFromRun,
     ): AssetHistorySyncState {
-        $now = now();
+        $now   = now();
         $model = $state ?? new AssetHistorySyncState([
             'monitored_asset_id' => $monitoredAssetId,
-            'status' => $mode === 'bootstrap' ? 'pending_bootstrap' : 'bootstrap_complete',
+            'status'             => $mode === 'bootstrap' ? 'pending_bootstrap' : 'bootstrap_complete',
             'bootstrap_from_date' => $fromDate,
         ]);
 
-        $existingEarliest = $model->earliest_quote_date_found?->toDateString();
-        $existingLatest = $model->latest_quote_date_synced?->toDateString();
-        $candidateEarliest = $this->minDate($existingEarliest, $earliestFromRun);
-        $candidateLatest = $this->maxDate($existingLatest, $latestFromRun);
+        $existingEarliest   = $model->earliest_quote_date_found?->toDateString();
+        $existingLatest     = $model->latest_quote_date_synced?->toDateString();
+        $candidateEarliest  = $this->minDate($existingEarliest, $earliestFromRun);
+        $candidateLatest    = $this->maxDate($existingLatest, $latestFromRun);
 
         $model->latest_quote_date_synced = $candidateLatest;
-        $model->last_mode_used = $mode;
-        $model->last_error = null;
+        $model->last_mode_used           = $mode;
+        $model->last_error               = null;
 
         if ($mode === 'bootstrap') {
-            $model->bootstrap_from_date = $model->bootstrap_from_date?->toDateString() ?? $fromDate;
+            $model->bootstrap_from_date       = $model->bootstrap_from_date?->toDateString() ?? $fromDate;
             $model->earliest_quote_date_found = $candidateEarliest;
-            $model->last_bootstrap_at = $now;
-            $model->status = 'bootstrap_complete';
-            $model->bootstrap_completed_at = $model->bootstrap_completed_at ?? $now;
+            $model->last_bootstrap_at         = $now;
+            $model->status                    = 'bootstrap_complete';
+            $model->bootstrap_completed_at    = $model->bootstrap_completed_at ?? $now;
         } else {
             $model->last_rolling_at = $now;
-            $model->status = 'bootstrap_complete';
+            $model->status          = 'bootstrap_complete';
             if ($model->bootstrap_completed_at === null) {
                 $model->bootstrap_completed_at = $now;
             }
         }
 
-        $model->save();
+        $this->syncStateRepository->save($model);
 
         return $model;
     }
@@ -444,13 +445,13 @@ class SyncDataUniverseJob implements ShouldQueue
         ?string $fromDate,
     ): AssetHistorySyncState {
         $model = $state ?? new AssetHistorySyncState([
-            'monitored_asset_id' => $monitoredAssetId,
-            'status' => $fromDate !== null ? 'pending_bootstrap' : 'bootstrap_complete',
+            'monitored_asset_id'  => $monitoredAssetId,
+            'status'              => $fromDate !== null ? 'pending_bootstrap' : 'bootstrap_complete',
             'bootstrap_from_date' => $fromDate,
         ]);
 
         $model->last_error = mb_substr($errorMessage, 0, 1000);
-        $model->save();
+        $this->syncStateRepository->save($model);
 
         return $model;
     }

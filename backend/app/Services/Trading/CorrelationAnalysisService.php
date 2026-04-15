@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services\Trading;
 
+use App\Contracts\AssetQuoteRepositoryInterface;
 use App\Contracts\CorrelationAnalysisServiceInterface;
-use App\Models\AssetQuote;
-use App\Models\MonitoredAsset;
+use App\Contracts\MonitoredAssetRepositoryInterface;
 
 class CorrelationAnalysisService implements CorrelationAnalysisServiceInterface
 {
+    public function __construct(
+        private readonly MonitoredAssetRepositoryInterface $monitoredAssetRepository,
+        private readonly AssetQuoteRepositoryInterface     $assetQuoteRepository,
+    ) {
+    }
+
     public function correlationsForTickers(array $tickers, int $lookbackDays = 90): array
     {
         $tickers = $this->normalizeTickers($tickers);
@@ -27,9 +33,8 @@ class CorrelationAnalysisService implements CorrelationAnalysisServiceInterface
                 $tickerA = $tickers[$indexA];
                 $tickerB = $tickers[$indexB];
 
-                $seriesA = $seriesByTicker[$tickerA] ?? [];
-                $seriesB = $seriesByTicker[$tickerB] ?? [];
-
+                $seriesA     = $seriesByTicker[$tickerA] ?? [];
+                $seriesB     = $seriesByTicker[$tickerB] ?? [];
                 $sharedDates = array_intersect(array_keys($seriesA), array_keys($seriesB));
 
                 if (count($sharedDates) < 20) {
@@ -53,12 +58,12 @@ class CorrelationAnalysisService implements CorrelationAnalysisServiceInterface
                 $absCorrelation = abs($correlation);
 
                 $pairs[] = [
-                    'ticker_a' => $tickerA,
-                    'ticker_b' => $tickerB,
-                    'correlation' => round($correlation, 6),
+                    'ticker_a'        => $tickerA,
+                    'ticker_b'        => $tickerB,
+                    'correlation'     => round($correlation, 6),
                     'abs_correlation' => round($absCorrelation, 6),
-                    'sample_size' => count($sharedDates),
-                    'strength' => $this->strengthLabel($absCorrelation),
+                    'sample_size'     => count($sharedDates),
+                    'strength'        => $this->strengthLabel($absCorrelation),
                 ];
             }
         }
@@ -74,7 +79,7 @@ class CorrelationAnalysisService implements CorrelationAnalysisServiceInterface
     public function highCorrelationSummary(array $tickers, int $lookbackDays = 90): array
     {
         $threshold = (float) config('market.correlations.high_threshold', 0.75);
-        $pairs = $this->correlationsForTickers($tickers, $lookbackDays);
+        $pairs     = $this->correlationsForTickers($tickers, $lookbackDays);
 
         $highPairs = array_values(array_filter(
             $pairs,
@@ -91,11 +96,11 @@ class CorrelationAnalysisService implements CorrelationAnalysisServiceInterface
         arsort($assetFrequency);
 
         return [
-            'threshold' => $threshold,
-            'pairs' => $highPairs,
-            'high_correlation_assets' => array_keys($assetFrequency),
-            'asset_frequency' => $assetFrequency,
-            'max_cluster_size' => $assetFrequency === [] ? 0 : max($assetFrequency),
+            'threshold'                => $threshold,
+            'pairs'                    => $highPairs,
+            'high_correlation_assets'  => array_keys($assetFrequency),
+            'asset_frequency'          => $assetFrequency,
+            'max_cluster_size'         => $assetFrequency === [] ? 0 : max($assetFrequency),
         ];
     }
 
@@ -105,33 +110,28 @@ class CorrelationAnalysisService implements CorrelationAnalysisServiceInterface
      */
     private function returnsSeriesByTicker(array $tickers, int $lookbackDays): array
     {
-        $assets = MonitoredAsset::query()
-            ->whereIn('ticker', $tickers)
-            ->get(['id', 'ticker'])
-            ->keyBy('id');
+        // Bulk-resolve ticker → id in one query
+        $idsByTicker = $this->monitoredAssetRepository->findIdsByTickers($tickers);
 
         $series = [];
 
-        foreach ($assets as $assetId => $asset) {
-            $quotes = AssetQuote::query()
-                ->where('monitored_asset_id', $assetId)
-                ->orderByDesc('trade_date')
-                ->limit($lookbackDays + 5)
-                ->get(['trade_date', 'close'])
+        foreach ($idsByTicker as $ticker => $assetId) {
+            $quotes = $this->assetQuoteRepository
+                ->findByAssetDescending($assetId, $lookbackDays + 5)
                 ->sortBy('trade_date')
                 ->values();
 
             $returnsByDate = [];
 
-            for ($index = 1; $index < $quotes->count(); $index++) {
-                $previous = (float) ($quotes[$index - 1]->close ?? 0.0);
-                $current = (float) ($quotes[$index]->close ?? 0.0);
+            for ($i = 1; $i < $quotes->count(); $i++) {
+                $previous = (float) ($quotes[$i - 1]->close ?? 0.0);
+                $current  = (float) ($quotes[$i]->close ?? 0.0);
 
                 if ($previous <= 0.0) {
                     continue;
                 }
 
-                $date = $quotes[$index]->trade_date?->toDateString();
+                $date = $quotes[$i]->trade_date?->toDateString();
 
                 if ($date === null) {
                     continue;
@@ -140,8 +140,7 @@ class CorrelationAnalysisService implements CorrelationAnalysisServiceInterface
                 $returnsByDate[$date] = ($current / $previous) - 1;
             }
 
-            $ticker = strtoupper((string) $asset->ticker);
-            $series[$ticker] = $returnsByDate;
+            $series[strtoupper($ticker)] = $returnsByDate;
         }
 
         return $series;
@@ -159,22 +158,22 @@ class CorrelationAnalysisService implements CorrelationAnalysisServiceInterface
             return null;
         }
 
-        $sumX = array_sum($x);
-        $sumY = array_sum($y);
-        $sumXY = 0.0;
+        $sumX       = array_sum($x);
+        $sumY       = array_sum($y);
+        $sumXY      = 0.0;
         $sumXSquare = 0.0;
         $sumYSquare = 0.0;
 
-        for ($index = 0; $index < $n; $index++) {
-            $xValue = (float) $x[$index];
-            $yValue = (float) $y[$index];
+        for ($i = 0; $i < $n; $i++) {
+            $xv = (float) $x[$i];
+            $yv = (float) $y[$i];
 
-            $sumXY += $xValue * $yValue;
-            $sumXSquare += $xValue ** 2;
-            $sumYSquare += $yValue ** 2;
+            $sumXY      += $xv * $yv;
+            $sumXSquare += $xv ** 2;
+            $sumYSquare += $yv ** 2;
         }
 
-        $numerator = ($n * $sumXY) - ($sumX * $sumY);
+        $numerator   = ($n * $sumXY) - ($sumX * $sumY);
         $denominator = sqrt((($n * $sumXSquare) - ($sumX ** 2)) * (($n * $sumYSquare) - ($sumY ** 2)));
 
         if ($denominator <= 0.0) {

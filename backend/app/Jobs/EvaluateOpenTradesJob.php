@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Contracts\AssetQuoteRepositoryInterface;
 use App\Contracts\ProbabilisticEngineInterface;
-use App\Enums\TradeCallStatus;
-use App\Models\AssetQuote;
-use App\Models\TradeCall;
-use App\Models\TradeOutcome;
+use App\Contracts\TradeCallRepositoryInterface;
+use App\Contracts\TradeOutcomeRepositoryInterface;
 use App\Services\Calls\TradeOutcomeEvaluatorService;
 use App\Services\MarketData\SyncLogger;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -26,41 +25,36 @@ class EvaluateOpenTradesJob implements ShouldQueue
     public function handle(
         TradeOutcomeEvaluatorService $tradeOutcomeEvaluatorService,
         ProbabilisticEngineInterface $probabilisticEngine,
+        TradeCallRepositoryInterface $tradeCallRepository,
+        AssetQuoteRepositoryInterface $assetQuoteRepository,
+        TradeOutcomeRepositoryInterface $tradeOutcomeRepository,
         SyncLogger $syncLogger,
     ): void {
-        $run = $syncLogger->start('evaluate_open_trades');
+        $run            = $syncLogger->start('evaluate_open_trades');
         $maxHoldingDays = (int) config('market.calls.max_holding_days', 20);
 
         $processed = 0;
-        $failed = 0;
+        $failed    = 0;
 
-        $calls = TradeCall::query()
-            ->with('monitoredAsset:id,ticker')
-            ->whereIn('status', [
-                TradeCallStatus::APPROVED->value,
-                TradeCallStatus::PUBLISHED->value,
-            ])
-            ->doesntHave('outcome')
-            ->orderBy('trade_date')
-            ->get();
+        $calls = $tradeCallRepository->findOpenWithoutOutcome();
 
         foreach ($calls as $call) {
             try {
-                $quotes = AssetQuote::query()
-                    ->where('monitored_asset_id', $call->monitored_asset_id)
-                    ->whereDate('trade_date', '>', $call->trade_date)
-                    ->orderBy('trade_date')
-                    ->limit($maxHoldingDays)
-                    ->get()
-                    ->map(static fn (AssetQuote $quote): array => [
+                $quotes = $assetQuoteRepository
+                    ->findByAssetAfterDate(
+                        (int) $call->monitored_asset_id,
+                        $call->trade_date->toDateString(),
+                        $maxHoldingDays,
+                    )
+                    ->map(static fn ($quote): array => [
                         'trade_date' => $quote->trade_date->toDateString(),
-                        'high' => (float) $quote->high,
-                        'low' => (float) $quote->low,
-                        'close' => (float) $quote->close,
+                        'high'       => (float) $quote->high,
+                        'low'        => (float) $quote->low,
+                        'close'      => (float) $quote->close,
                     ])
                     ->all();
 
-                $daysOpen = (int) $call->trade_date->diffInDays(now());
+                $daysOpen        = (int) $call->trade_date->diffInDays(now());
                 $allowTimeoutExit = $daysOpen >= $maxHoldingDays;
 
                 $result = $tradeOutcomeEvaluatorService->evaluate(
@@ -76,34 +70,31 @@ class EvaluateOpenTradesJob implements ShouldQueue
                     continue;
                 }
 
-                TradeOutcome::query()->updateOrCreate([
-                    'trade_call_id' => $call->id,
-                ], [
+                $tradeOutcomeRepository->upsertForCall($call->id, [
                     'monitored_asset_id' => $call->monitored_asset_id,
-                    'setup_code' => $call->setup_code,
-                    'entry_price' => (float) $call->entry_price,
-                    'stop_price' => (float) $call->stop_price,
-                    'target_price' => (float) $call->target_price,
-                    'exit_price' => (float) ($result['exit_price'] ?? 0.0),
-                    'result' => (string) ($result['result'] ?? 'loss'),
-                    'pnl_percent' => (float) ($result['pnl_percent'] ?? 0.0),
-                    'duration_days' => (int) ($result['duration_days'] ?? 0),
+                    'setup_code'         => $call->setup_code,
+                    'entry_price'        => (float) $call->entry_price,
+                    'stop_price'         => (float) $call->stop_price,
+                    'target_price'       => (float) $call->target_price,
+                    'exit_price'         => (float) ($result['exit_price'] ?? 0.0),
+                    'result'             => (string) ($result['result'] ?? 'loss'),
+                    'pnl_percent'        => (float) ($result['pnl_percent'] ?? 0.0),
+                    'duration_days'      => (int) ($result['duration_days'] ?? 0),
                 ]);
 
                 $processed++;
 
                 $syncLogger->log($run, 'info', 'Trade outcome registrado', [
-                    'symbol' => $call->monitoredAsset?->ticker,
+                    'symbol'        => $call->monitoredAsset?->ticker,
                     'trade_call_id' => $call->id,
-                    'result' => $result['result'] ?? null,
-                    'pnl_percent' => $result['pnl_percent'] ?? null,
+                    'result'        => $result['result'] ?? null,
+                    'pnl_percent'   => $result['pnl_percent'] ?? null,
                 ]);
             } catch (Throwable $exception) {
                 $failed++;
-
                 $syncLogger->log($run, 'error', 'Falha ao avaliar trade aberto', [
                     'trade_call_id' => $call->id,
-                    'error' => $exception->getMessage(),
+                    'error'         => $exception->getMessage(),
                 ]);
             }
         }

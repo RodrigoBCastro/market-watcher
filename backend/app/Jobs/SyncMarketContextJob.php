@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Contracts\MacroSnapshotRepositoryInterface;
 use App\Contracts\MarketDataProviderInterface;
-use App\Models\MacroSnapshot;
-use App\Models\MarketIndex;
+use App\Contracts\MarketIndexRepositoryInterface;
 use App\Services\MarketData\HgBrasilProvider;
 use App\Services\MarketData\SyncLogger;
 use Carbon\CarbonImmutable;
@@ -25,12 +25,14 @@ class SyncMarketContextJob implements ShouldQueue
     public function handle(
         MarketDataProviderInterface $provider,
         HgBrasilProvider $hgBrasilProvider,
+        MarketIndexRepositoryInterface $marketIndexRepository,
+        MacroSnapshotRepositoryInterface $macroSnapshotRepository,
         SyncLogger $syncLogger,
     ): void {
         $run = $syncLogger->start('sync_market_context');
 
         $processed = 0;
-        $failed = 0;
+        $failed    = 0;
 
         try {
             $ibovQuotes = $provider->getIndexQuote('^BVSP', 90);
@@ -39,21 +41,8 @@ class SyncMarketContextJob implements ShouldQueue
                 $ibovQuotes = $provider->getIndexQuote('IBOV', 90);
             }
 
-            foreach ($ibovQuotes as $quote) {
-                MarketIndex::query()->updateOrCreate([
-                    'symbol' => 'IBOV',
-                    'trade_date' => $quote->tradeDate->toDateString(),
-                ], [
-                    'open' => $quote->open,
-                    'high' => $quote->high,
-                    'low' => $quote->low,
-                    'close' => $quote->close,
-                    'volume' => $quote->volume,
-                    'source' => $quote->source,
-                ]);
-
-                $processed++;
-            }
+            // Bulk upsert — replaces the per-row updateOrCreate loop.
+            $processed += $marketIndexRepository->upsertBatch('IBOV', $ibovQuotes);
 
             $latestIbov = end($ibovQuotes);
 
@@ -71,16 +60,14 @@ class SyncMarketContextJob implements ShouldQueue
 
             $snapshotDate = CarbonImmutable::parse((string) ($usdBrl['trade_date'] ?? $latestIbov->tradeDate->toDateString()));
 
-            MacroSnapshot::query()->updateOrCreate([
-                'snapshot_date' => $snapshotDate->toDateString(),
-            ], [
-                'usd_brl' => (float) ($usdBrl['value'] ?? 0.0),
-                'ibov_close' => (float) $latestIbov->close,
-                'market_bias' => $this->resolveMarketBias($ibovQuotes, (float) ($usdBrl['value'] ?? 0.0)),
-                'source' => (string) ($usdBrl['source'] ?? 'brapi'),
-                'raw_payload' => [
+            $macroSnapshotRepository->upsert($snapshotDate->toDateString(), [
+                'usd_brl'      => (float) ($usdBrl['value'] ?? 0.0),
+                'ibov_close'   => (float) $latestIbov->close,
+                'market_bias'  => $this->resolveMarketBias($ibovQuotes, (float) ($usdBrl['value'] ?? 0.0)),
+                'source'       => (string) ($usdBrl['source'] ?? 'brapi'),
+                'raw_payload'  => [
                     'ibov_last_trade_date' => $latestIbov->tradeDate->toDateString(),
-                    'usd_brl' => $usdBrl,
+                    'usd_brl'              => $usdBrl,
                 ],
             ]);
 
@@ -109,9 +96,9 @@ class SyncMarketContextJob implements ShouldQueue
         }
 
         $closes = array_map(static fn ($quote): float => $quote->close, $ibovQuotes);
-        $last = $closes[count($closes) - 1];
-        $sma21 = array_sum(array_slice($closes, -21)) / 21;
-        $sma50 = array_sum(array_slice($closes, -50)) / 50;
+        $last   = $closes[count($closes) - 1];
+        $sma21  = array_sum(array_slice($closes, -21)) / 21;
+        $sma50  = array_sum(array_slice($closes, -50)) / 50;
 
         if ($last > $sma21 && $sma21 > $sma50 && $usdBrl < 5.45) {
             return 'favoravel';

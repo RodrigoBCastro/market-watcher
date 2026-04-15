@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Contracts\AssetQuoteRepositoryInterface;
 use App\Contracts\IndicatorCalculatorInterface;
-use App\Models\AssetQuote;
-use App\Models\MonitoredAsset;
-use App\Models\TechnicalIndicator;
+use App\Contracts\MonitoredAssetRepositoryInterface;
+use App\Contracts\TechnicalIndicatorRepositoryInterface;
 use App\Services\MarketData\SyncLogger;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -25,33 +25,26 @@ class RecalculateIndicatorsJob implements ShouldQueue
     {
     }
 
-    public function handle(IndicatorCalculatorInterface $indicatorPipeline, SyncLogger $syncLogger): void
-    {
+    public function handle(
+        IndicatorCalculatorInterface $indicatorPipeline,
+        MonitoredAssetRepositoryInterface $monitoredAssetRepository,
+        AssetQuoteRepositoryInterface $assetQuoteRepository,
+        TechnicalIndicatorRepositoryInterface $indicatorRepository,
+        SyncLogger $syncLogger,
+    ): void {
         $run = $syncLogger->start('recalculate_indicators');
 
         $processed = 0;
-        $failed = 0;
+        $failed    = 0;
 
-        // cursor() itera um ativo por vez sem carregar todos em memória.
-        // Quotes são buscadas por ativo individualmente com limite de 600 candles
-        // (suficiente para SMA200 + 400 candles de histórico válido).
-        $assets = MonitoredAsset::query()
-            ->where('is_active', true)
-            ->where('eligible_for_analysis', true)
-            ->when($this->ticker, static function ($query, string $ticker): void {
-                $query->where('ticker', strtoupper($ticker));
-            })
-            ->select(['id', 'ticker'])
-            ->orderBy('id')
-            ->cursor();
+        // cursor() iterates one asset at a time without loading all into memory.
+        $assets = $monitoredAssetRepository->cursorForAnalysis($this->ticker);
 
         foreach ($assets as $asset) {
             try {
-                $quotes = AssetQuote::query()
-                    ->where('monitored_asset_id', $asset->id)
-                    ->orderBy('trade_date')
-                    ->limit(600)
-                    ->get(['trade_date', 'open', 'high', 'low', 'close', 'volume'])
+                // Fetch up to 600 candles — enough for SMA200 + 400 candles of valid history.
+                $quotes = $assetQuoteRepository
+                    ->findByAssetAscending((int) $asset->id, 600)
                     ->map(static fn ($quote): array => [
                         'trade_date' => $quote->trade_date->toDateString(),
                         'open'       => (float) $quote->open,
@@ -59,7 +52,8 @@ class RecalculateIndicatorsJob implements ShouldQueue
                         'low'        => (float) $quote->low,
                         'close'      => (float) $quote->close,
                         'volume'     => (int) $quote->volume,
-                    ])->all();
+                    ])
+                    ->all();
 
                 if (count($quotes) < 20) {
                     $syncLogger->log($run, 'warning', "Histórico insuficiente para indicadores de {$asset->ticker}");
@@ -68,16 +62,9 @@ class RecalculateIndicatorsJob implements ShouldQueue
 
                 $indicatorRows = $indicatorPipeline->calculate($quotes);
 
-                foreach ($indicatorRows as $row) {
-                    TechnicalIndicator::query()->updateOrCreate([
-                        'monitored_asset_id' => $asset->id,
-                        'trade_date' => $row['trade_date'],
-                    ], array_merge($row, [
-                        'monitored_asset_id' => $asset->id,
-                    ]));
-
-                    $processed++;
-                }
+                // Bulk upsert — replaces the per-row updateOrCreate loop.
+                $count = $indicatorRepository->upsertBatch((int) $asset->id, $indicatorRows);
+                $processed += $count;
 
                 $syncLogger->log($run, 'info', "Indicadores recalculados para {$asset->ticker}", [
                     'rows' => count($indicatorRows),

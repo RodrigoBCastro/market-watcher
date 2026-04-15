@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services\Backtest;
 
+use App\Contracts\AssetAnalysisScoreRepositoryInterface;
+use App\Contracts\AssetQuoteRepositoryInterface;
 use App\Contracts\BacktestEngineInterface;
+use App\Contracts\BacktestResultRepositoryInterface;
+use App\Contracts\SetupMetricRepositoryInterface;
 use App\DTOs\BacktestResultDTO;
-use App\Models\AssetAnalysisScore;
 use App\Models\AssetQuote;
 use App\Models\BacktestResult;
-use App\Models\SetupMetric;
 use App\Services\Calls\TradeCallFilterService;
 use App\Services\Calls\TradeOutcomeEvaluatorService;
 use Carbon\CarbonImmutable;
@@ -19,6 +21,10 @@ class BacktestEngine implements BacktestEngineInterface
     public function __construct(
         private readonly TradeCallFilterService $tradeCallFilterService,
         private readonly TradeOutcomeEvaluatorService $tradeOutcomeEvaluatorService,
+        private readonly BacktestResultRepositoryInterface $backtestResultRepository,
+        private readonly AssetAnalysisScoreRepositoryInterface $assetAnalysisScoreRepository,
+        private readonly AssetQuoteRepositoryInterface $assetQuoteRepository,
+        private readonly SetupMetricRepositoryInterface $setupMetricRepository,
     ) {
     }
 
@@ -31,15 +37,7 @@ class BacktestEngine implements BacktestEngineInterface
         $from = isset($options['from']) ? CarbonImmutable::parse((string) $options['from'])->toDateString() : null;
         $to = isset($options['to']) ? CarbonImmutable::parse((string) $options['to'])->toDateString() : null;
 
-        $scores = AssetAnalysisScore::query()
-            ->when($from !== null, static function ($query, string $from): void {
-                $query->whereDate('trade_date', '>=', $from);
-            })
-            ->when($to !== null, static function ($query, string $to): void {
-                $query->whereDate('trade_date', '<=', $to);
-            })
-            ->orderBy('trade_date')
-            ->get();
+        $scores = $this->assetAnalysisScoreRepository->queryInDateRange($from, $to);
 
         $pnls = [];
         $totalTrades = 0;
@@ -50,18 +48,18 @@ class BacktestEngine implements BacktestEngineInterface
                 continue;
             }
 
-            $metric = SetupMetric::query()->where('setup_code', $score->setup_code)->first();
+            $metric = $this->setupMetricRepository->findBySetupCode((string) $score->setup_code);
             $filter = $this->tradeCallFilterService->evaluate($score, $metric);
             if (! $filter['eligible']) {
                 continue;
             }
 
-            $quotes = AssetQuote::query()
-                ->where('monitored_asset_id', $score->monitored_asset_id)
-                ->whereDate('trade_date', '>', $score->trade_date)
-                ->orderBy('trade_date')
-                ->limit($maxHoldingDays)
-                ->get()
+            $quotes = $this->assetQuoteRepository
+                ->findByAssetAfterDate(
+                    assetId: (int) $score->monitored_asset_id,
+                    afterDate: $score->trade_date->toDateString(),
+                    limit: $maxHoldingDays,
+                )
                 ->map(static fn (AssetQuote $quote): array => [
                     'trade_date' => $quote->trade_date->toDateString(),
                     'high' => (float) $quote->high,
@@ -96,7 +94,7 @@ class BacktestEngine implements BacktestEngineInterface
         $maxDrawdown = $this->maxDrawdown($pnls);
         $profitFactor = $this->profitFactor($pnls);
 
-        $model = BacktestResult::query()->create([
+        $model = $this->backtestResultRepository->create([
             'strategy_name' => $strategyName,
             'total_trades' => $totalTrades,
             'winrate' => round($winrate, 3),
@@ -128,10 +126,8 @@ class BacktestEngine implements BacktestEngineInterface
      */
     public function listResults(int $limit = 30): array
     {
-        return BacktestResult::query()
-            ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get()
+        return $this->backtestResultRepository
+            ->listByUser($limit)
             ->map(static fn (BacktestResult $result): array => [
                 'id' => $result->id,
                 'strategy_name' => $result->strategy_name,

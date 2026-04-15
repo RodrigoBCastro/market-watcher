@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\AssetAnalysisScoreRepositoryInterface;
+use App\Contracts\AssetQuoteRepositoryInterface;
+use App\Contracts\MonitoredAssetRepositoryInterface;
+use App\Contracts\TechnicalIndicatorRepositoryInterface;
 use App\Contracts\TradeDecisionEngineInterface;
 use App\Http\Controllers\Controller;
 use App\Models\AssetAnalysisScore;
-use App\Models\MonitoredAsset;
 use App\Services\Analysis\MarketContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,49 +18,47 @@ use Illuminate\Http\Request;
 class AssetAnalysisController extends Controller
 {
     public function __construct(
-        private readonly TradeDecisionEngineInterface $tradeDecisionEngine,
-        private readonly MarketContextService $marketContextService,
+        private readonly TradeDecisionEngineInterface          $tradeDecisionEngine,
+        private readonly MarketContextService                  $marketContextService,
+        private readonly MonitoredAssetRepositoryInterface     $monitoredAssetRepository,
+        private readonly AssetQuoteRepositoryInterface         $assetQuoteRepository,
+        private readonly TechnicalIndicatorRepositoryInterface $technicalIndicatorRepository,
+        private readonly AssetAnalysisScoreRepositoryInterface $scoreRepository,
     ) {
     }
 
     public function quotes(Request $request, string $ticker): JsonResponse
     {
-        $limit = (int) $request->integer('limit', 120);
+        $limit = max(1, min((int) $request->integer('limit', 120), 500));
+        $asset = $this->monitoredAssetRepository->findOrFailByTicker(strtoupper($ticker));
 
-        $asset = MonitoredAsset::query()->where('ticker', strtoupper($ticker))->firstOrFail();
-
-        $rows = $asset->quotes()
-            ->orderByDesc('trade_date')
-            ->limit(max(1, min($limit, 500)))
-            ->get()
+        $rows = $this->assetQuoteRepository
+            ->findByAssetDescending((int) $asset->id, $limit)
             ->map(static fn ($quote): array => [
-                'trade_date' => $quote->trade_date?->toDateString(),
-                'open' => (float) $quote->open,
-                'high' => (float) $quote->high,
-                'low' => (float) $quote->low,
-                'close' => (float) $quote->close,
+                'trade_date'     => $quote->trade_date?->toDateString(),
+                'open'           => (float) $quote->open,
+                'high'           => (float) $quote->high,
+                'low'            => (float) $quote->low,
+                'close'          => (float) $quote->close,
                 'adjusted_close' => $quote->adjusted_close,
-                'volume' => (int) $quote->volume,
-                'source' => $quote->source,
+                'volume'         => (int) $quote->volume,
+                'source'         => $quote->source,
             ])
             ->values();
 
         return response()->json([
             'symbol' => $asset->ticker,
-            'items' => $rows,
+            'items'  => $rows,
         ]);
     }
 
     public function indicators(Request $request, string $ticker): JsonResponse
     {
-        $limit = (int) $request->integer('limit', 120);
+        $limit = max(1, min((int) $request->integer('limit', 120), 500));
+        $asset = $this->monitoredAssetRepository->findOrFailByTicker(strtoupper($ticker));
 
-        $asset = MonitoredAsset::query()->where('ticker', strtoupper($ticker))->firstOrFail();
-
-        $rows = $asset->indicators()
-            ->orderByDesc('trade_date')
-            ->limit(max(1, min($limit, 500)))
-            ->get()
+        $rows = $this->technicalIndicatorRepository
+            ->findByAssetDescending((int) $asset->id, $limit)
             ->map(static fn ($row): array => $row->only([
                 'trade_date',
                 'sma_5', 'sma_9', 'sma_10', 'sma_20', 'sma_21', 'sma_30', 'sma_40', 'sma_50', 'sma_72', 'sma_80', 'sma_100', 'sma_120', 'sma_150', 'sma_200',
@@ -79,16 +80,17 @@ class AssetAnalysisController extends Controller
 
         return response()->json([
             'symbol' => $asset->ticker,
-            'items' => $rows,
+            'items'  => $rows,
         ]);
     }
 
     public function analysis(string $ticker): JsonResponse
     {
-        $asset = MonitoredAsset::query()->where('ticker', strtoupper($ticker))->firstOrFail();
+        $asset = $this->monitoredAssetRepository->findOrFailByTicker(strtoupper($ticker));
 
-        $latestQuote = $asset->quotes()->orderByDesc('trade_date')->first();
-        $latestScore = $asset->analysisScores()->orderByDesc('trade_date')->first();
+        $latestQuote = $this->assetQuoteRepository
+            ->findByAssetDescending((int) $asset->id, 1)
+            ->first();
 
         if ($latestQuote === null) {
             return response()->json([
@@ -96,20 +98,28 @@ class AssetAnalysisController extends Controller
             ], 404);
         }
 
+        $latestScore = $this->scoreRepository->findLatestByAsset((int) $asset->id);
+
         if ($latestScore !== null) {
-            return response()->json($this->mapStoredAnalysis($asset->ticker, $latestQuote->close, $latestScore));
+            return response()->json($this->mapStoredAnalysis($asset->ticker, (float) $latestQuote->close, $latestScore));
         }
 
-        $quotes = $asset->quotes()->orderBy('trade_date')->get()->map(static fn ($quote): array => [
-            'trade_date' => $quote->trade_date?->toDateString(),
-            'open' => (float) $quote->open,
-            'high' => (float) $quote->high,
-            'low' => (float) $quote->low,
-            'close' => (float) $quote->close,
-            'volume' => (int) $quote->volume,
-        ])->all();
+        $quotes = $this->assetQuoteRepository
+            ->findByAssetAscending((int) $asset->id, 600)
+            ->map(static fn ($quote): array => [
+                'trade_date' => $quote->trade_date?->toDateString(),
+                'open'       => (float) $quote->open,
+                'high'       => (float) $quote->high,
+                'low'        => (float) $quote->low,
+                'close'      => (float) $quote->close,
+                'volume'     => (int) $quote->volume,
+            ])
+            ->all();
 
-        $indicators = $asset->indicators()->orderBy('trade_date')->get()->map(static fn ($row): array => $row->toArray())->all();
+        $indicators = $this->technicalIndicatorRepository
+            ->findByAssetAscending((int) $asset->id, 600)
+            ->map(static fn ($row): array => $row->toArray())
+            ->all();
 
         if ($indicators === []) {
             return response()->json([
@@ -118,7 +128,7 @@ class AssetAnalysisController extends Controller
         }
 
         $marketContext = $this->marketContextService->resolve($latestQuote->trade_date);
-        $decision = $this->tradeDecisionEngine->evaluate($asset->ticker, $quotes, [
+        $decision      = $this->tradeDecisionEngine->evaluate($asset->ticker, $quotes, [
             'current' => $indicators[count($indicators) - 1],
             'history' => array_slice($indicators, -5),
         ], $marketContext);
@@ -127,9 +137,9 @@ class AssetAnalysisController extends Controller
             ...$decision->toArray(),
             'prices' => [
                 'current' => (float) $latestQuote->close,
-                'entry' => $decision->entry,
-                'stop' => $decision->stop,
-                'target' => $decision->target,
+                'entry'   => $decision->entry,
+                'stop'    => $decision->stop,
+                'target'  => $decision->target,
             ],
         ]);
     }
@@ -137,38 +147,38 @@ class AssetAnalysisController extends Controller
     private function mapStoredAnalysis(string $symbol, float $currentPrice, AssetAnalysisScore $score): array
     {
         return [
-            'symbol' => $symbol,
-            'trade_date' => $score->trade_date?->toDateString(),
-            'classification' => $score->classification,
-            'recommendation' => $score->recommendation,
-            'setup' => [
-                'code' => $score->setup_code,
+            'symbol'           => $symbol,
+            'trade_date'       => $score->trade_date?->toDateString(),
+            'classification'   => $score->classification,
+            'recommendation'   => $score->recommendation,
+            'setup'            => [
+                'code'  => $score->setup_code,
                 'label' => $score->setup_label,
             ],
-            'prices' => [
+            'prices'           => [
                 'current' => $currentPrice,
-                'entry' => $score->suggested_entry,
-                'stop' => $score->suggested_stop,
-                'target' => $score->suggested_target,
+                'entry'   => $score->suggested_entry,
+                'stop'    => $score->suggested_stop,
+                'target'  => $score->suggested_target,
             ],
-            'risk_metrics' => [
-                'risk_percent' => $score->risk_percent,
+            'risk_metrics'     => [
+                'risk_percent'   => $score->risk_percent,
                 'reward_percent' => $score->reward_percent,
-                'rr_ratio' => $score->rr_ratio,
+                'rr_ratio'       => $score->rr_ratio,
             ],
-            'score_breakdown' => [
-                'trend_score' => $score->trend_score,
-                'moving_average_score' => $score->moving_average_score,
-                'structure_score' => $score->structure_score,
-                'momentum_score' => $score->momentum_score,
-                'volume_score' => $score->volume_score,
-                'risk_score' => $score->risk_score,
-                'market_context_score' => $score->market_context_score,
-                'final_score' => $score->final_score,
-                'classification' => $score->classification,
+            'score_breakdown'  => [
+                'trend_score'           => $score->trend_score,
+                'moving_average_score'  => $score->moving_average_score,
+                'structure_score'       => $score->structure_score,
+                'momentum_score'        => $score->momentum_score,
+                'volume_score'          => $score->volume_score,
+                'risk_score'            => $score->risk_score,
+                'market_context_score'  => $score->market_context_score,
+                'final_score'           => $score->final_score,
+                'classification'        => $score->classification,
             ],
-            'alerts' => $score->alert_flags ?? [],
-            'rationale' => $score->rationale,
+            'alerts'           => $score->alert_flags ?? [],
+            'rationale'        => $score->rationale,
         ];
     }
 }

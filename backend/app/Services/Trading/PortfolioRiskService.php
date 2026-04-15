@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace App\Services\Trading;
 
 use App\Contracts\CorrelationAnalysisServiceInterface;
+use App\Contracts\MonitoredAssetRepositoryInterface;
+use App\Contracts\PortfolioPositionRepositoryInterface;
 use App\Contracts\PortfolioRiskServiceInterface;
 use App\Contracts\RiskSettingsServiceInterface;
-use App\Models\MonitoredAsset;
 use App\Models\PortfolioPosition;
+use Illuminate\Support\Collection;
 
 class PortfolioRiskService implements PortfolioRiskServiceInterface
 {
     public function __construct(
-        private readonly RiskSettingsServiceInterface $riskSettingsService,
-        private readonly CorrelationAnalysisServiceInterface $correlationAnalysisService,
-        private readonly PortfolioMarkToMarketService $markToMarketService,
+        private readonly RiskSettingsServiceInterface         $riskSettingsService,
+        private readonly CorrelationAnalysisServiceInterface  $correlationAnalysisService,
+        private readonly PortfolioMarkToMarketService         $markToMarketService,
+        private readonly PortfolioPositionRepositoryInterface $portfolioPositionRepository,
+        private readonly MonitoredAssetRepositoryInterface    $monitoredAssetRepository,
     ) {
     }
 
@@ -24,8 +28,8 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
         $settings = $this->riskSettingsService->getForUser($userId);
         $this->markToMarketService->refreshForUser($userId);
 
-        $positions = $this->openPositions($userId);
-        $snapshots = $this->markToMarketService->snapshots($positions);
+        $positions    = $this->portfolioPositionRepository->findOpenByUserWithRelations($userId);
+        $snapshots    = $this->markToMarketService->snapshots($positions);
         $snapshotRows = array_map(static fn ($item): array => $item->toArray(), $snapshots);
 
         $capitalAllocated = round(array_sum(array_map(
@@ -58,10 +62,10 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
             )), 4)
             : 0.0;
 
-        $exposure = $this->buildExposure(
-            rows: $snapshotRows,
-            capitalTotal: $settings->totalCapital,
-            maxAssetPercent: $settings->maxPositionSizePercent,
+        $exposure     = $this->buildExposure(
+            rows:             $snapshotRows,
+            capitalTotal:     $settings->totalCapital,
+            maxAssetPercent:  $settings->maxPositionSizePercent,
             maxSectorPercent: $settings->maxSectorExposurePercent,
         );
         $correlations = $this->correlations($userId);
@@ -89,19 +93,19 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
         }
 
         return [
-            'settings' => $settings->toArray(),
-            'capital_total' => round($settings->totalCapital, 2),
-            'capital_allocated' => $capitalAllocated,
-            'capital_free' => $capitalFree,
-            'open_positions' => count($snapshotRows),
-            'open_risk_amount' => $openRiskAmount,
-            'open_risk_percent' => $openRiskPercent,
-            'largest_position_percent' => $largestPositionPercent,
+            'settings'                        => $settings->toArray(),
+            'capital_total'                   => round($settings->totalCapital, 2),
+            'capital_allocated'               => $capitalAllocated,
+            'capital_free'                    => $capitalFree,
+            'open_positions'                  => count($snapshotRows),
+            'open_risk_amount'                => $openRiskAmount,
+            'open_risk_percent'               => $openRiskPercent,
+            'largest_position_percent'        => $largestPositionPercent,
             'largest_individual_risk_percent' => $largestRiskPercent,
-            'exposure' => $exposure,
-            'correlations' => $correlations,
-            'blocked' => $violations !== [],
-            'violations' => $violations,
+            'exposure'                        => $exposure,
+            'correlations'                    => $correlations,
+            'blocked'                         => $violations !== [],
+            'violations'                      => $violations,
         ];
     }
 
@@ -110,30 +114,26 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
         $settings = $this->riskSettingsService->getForUser($userId);
         $this->markToMarketService->refreshForUser($userId);
 
-        $positions = $this->openPositions($userId);
+        $positions = $this->portfolioPositionRepository->findOpenByUserWithRelations($userId);
         $snapshots = $this->markToMarketService->snapshots($positions);
 
         $rows = array_map(static fn ($item): array => $item->toArray(), $snapshots);
 
         return $this->buildExposure(
-            rows: $rows,
-            capitalTotal: $settings->totalCapital,
-            maxAssetPercent: $settings->maxPositionSizePercent,
+            rows:             $rows,
+            capitalTotal:     $settings->totalCapital,
+            maxAssetPercent:  $settings->maxPositionSizePercent,
             maxSectorPercent: $settings->maxSectorExposurePercent,
         );
     }
 
     public function correlations(int $userId): array
     {
-        $positions = $this->openPositions($userId);
-        $tickers = $positions
-            ->map(static fn (PortfolioPosition $position): string => strtoupper((string) $position->monitoredAsset?->ticker))
-            ->filter(static fn (string $ticker): bool => $ticker !== '')
-            ->values()
-            ->all();
+        $positions = $this->portfolioPositionRepository->findOpenByUserWithRelations($userId);
+        $tickers   = $this->extractTickers($positions);
 
         return $this->correlationAnalysisService->highCorrelationSummary(
-            tickers: $tickers,
+            tickers:      $tickers,
             lookbackDays: (int) config('market.correlations.lookback_days', 90),
         );
     }
@@ -141,10 +141,10 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
     public function canOpenPosition(int $userId, int $monitoredAssetId, float $positionValue, float $riskAmount): array
     {
         $settings = $this->riskSettingsService->getForUser($userId);
-        $summary = $this->summary($userId);
+        $summary  = $this->summary($userId);
 
         $violations = [];
-        $warnings = [];
+        $warnings   = [];
 
         if ($summary['open_positions'] >= $settings->maxOpenPositions) {
             $violations[] = 'Limite de posições abertas atingido.';
@@ -170,11 +170,11 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
             $violations[] = 'Risco total projetado acima do limite da carteira.';
         }
 
-        $asset = MonitoredAsset::query()->find($monitoredAssetId);
+        $asset  = $this->monitoredAssetRepository->findById($monitoredAssetId);
         $ticker = strtoupper((string) ($asset?->ticker ?? ''));
         $sector = (string) ($asset?->sectorMapping?->sector ?? $asset?->sector ?? 'Outros');
 
-        $assetExposure = (array) ($summary['exposure']['by_asset'] ?? []);
+        $assetExposure  = (array) ($summary['exposure']['by_asset'] ?? []);
         $sectorExposure = (array) ($summary['exposure']['by_sector'] ?? []);
 
         $projectedAsset = (float) ($assetExposure[$ticker]['percent'] ?? 0.0) + $positionPercent;
@@ -189,22 +189,15 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
             $violations[] = "Exposição projetada no setor {$sector} acima do limite.";
         }
 
-        $openTickers = PortfolioPosition::query()
-            ->where('user_id', $userId)
-            ->where('status', 'open')
-            ->with('monitoredAsset:id,ticker')
-            ->get()
-            ->map(static fn (PortfolioPosition $position): string => strtoupper((string) $position->monitoredAsset?->ticker))
-            ->filter(static fn (string $item): bool => $item !== '')
-            ->values()
-            ->all();
+        $openPositions = $this->portfolioPositionRepository->findOpenByUserWithRelations($userId);
+        $openTickers   = $this->extractTickers($openPositions);
 
         if ($ticker !== '') {
             $openTickers[] = $ticker;
         }
 
         $correlationSummary = $this->correlationAnalysisService->highCorrelationSummary(
-            tickers: array_values(array_unique($openTickers)),
+            tickers:      array_values(array_unique($openTickers)),
             lookbackDays: (int) config('market.correlations.lookback_days', 90),
         );
 
@@ -217,9 +210,9 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
         }
 
         return [
-            'allowed' => $violations === [],
+            'allowed'    => $violations === [],
             'violations' => $violations,
-            'warnings' => $warnings,
+            'warnings'   => $warnings,
         ];
     }
 
@@ -232,15 +225,14 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
         float $capitalTotal,
         float $maxAssetPercent,
         float $maxSectorPercent,
-    ): array
-    {
-        $byAsset = [];
+    ): array {
+        $byAsset  = [];
         $bySector = [];
 
         foreach ($rows as $item) {
             $ticker = (string) ($item['ticker'] ?? '');
             $sector = (string) ($item['sector'] ?? 'Outros');
-            $value = (float) ($item['current_value'] ?? 0.0);
+            $value  = (float) ($item['current_value'] ?? 0.0);
 
             if (! isset($byAsset[$ticker])) {
                 $byAsset[$ticker] = ['value' => 0.0, 'percent' => 0.0];
@@ -250,19 +242,19 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
                 $bySector[$sector] = ['value' => 0.0, 'percent' => 0.0];
             }
 
-            $byAsset[$ticker]['value'] += $value;
+            $byAsset[$ticker]['value']  += $value;
             $bySector[$sector]['value'] += $value;
         }
 
         foreach ($byAsset as $key => $item) {
-            $byAsset[$key]['value'] = round((float) $item['value'], 2);
+            $byAsset[$key]['value']   = round((float) $item['value'], 2);
             $byAsset[$key]['percent'] = $capitalTotal > 0
                 ? round(((float) $item['value'] / $capitalTotal) * 100, 4)
                 : 0.0;
         }
 
         foreach ($bySector as $key => $item) {
-            $bySector[$key]['value'] = round((float) $item['value'], 2);
+            $bySector[$key]['value']   = round((float) $item['value'], 2);
             $bySector[$key]['percent'] = $capitalTotal > 0
                 ? round(((float) $item['value'] / $capitalTotal) * 100, 4)
                 : 0.0;
@@ -279,23 +271,23 @@ class PortfolioRiskService implements PortfolioRiskServiceInterface
         ));
 
         return [
-            'by_asset' => $byAsset,
-            'by_sector' => $bySector,
-            'over_asset_limit' => array_values($overAssetLimit),
+            'by_asset'          => $byAsset,
+            'by_sector'         => $bySector,
+            'over_asset_limit'  => array_values($overAssetLimit),
             'over_sector_limit' => array_values($overSectorLimit),
         ];
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, PortfolioPosition>
+     * @param  Collection<int, PortfolioPosition>  $positions
+     * @return array<int, string>
      */
-    private function openPositions(int $userId)
+    private function extractTickers(Collection $positions): array
     {
-        return PortfolioPosition::query()
-            ->with(['monitoredAsset:id,ticker,name,sector', 'monitoredAsset.sectorMapping:monitored_asset_id,sector,subsector,segment', 'tradeCall:id,setup_code,setup_label,score,confidence_score'])
-            ->where('user_id', $userId)
-            ->where('status', 'open')
-            ->orderByDesc('entry_date')
-            ->get();
+        return $positions
+            ->map(static fn (PortfolioPosition $position): string => strtoupper((string) $position->monitoredAsset?->ticker))
+            ->filter(static fn (string $ticker): bool => $ticker !== '')
+            ->values()
+            ->all();
     }
 }

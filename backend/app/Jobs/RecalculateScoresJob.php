@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Contracts\AssetAnalysisScoreRepositoryInterface;
+use App\Contracts\AssetQuoteRepositoryInterface;
+use App\Contracts\MonitoredAssetRepositoryInterface;
+use App\Contracts\TechnicalIndicatorRepositoryInterface;
 use App\Contracts\TradeDecisionEngineInterface;
-use App\Models\AssetAnalysisScore;
-use App\Models\MonitoredAsset;
 use App\Services\Analysis\MarketContextService;
 use App\Services\MarketData\SyncLogger;
+use DateTimeImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -30,44 +33,37 @@ class RecalculateScoresJob implements ShouldQueue
     public function handle(
         TradeDecisionEngineInterface $tradeDecisionEngine,
         MarketContextService $marketContextService,
+        MonitoredAssetRepositoryInterface $monitoredAssetRepository,
+        AssetQuoteRepositoryInterface $assetQuoteRepository,
+        TechnicalIndicatorRepositoryInterface $indicatorRepository,
+        AssetAnalysisScoreRepositoryInterface $scoreRepository,
         SyncLogger $syncLogger,
     ): void {
         $run = $syncLogger->start('recalculate_scores');
 
         $processed = 0;
-        $failed = 0;
+        $failed    = 0;
 
-        $assets = MonitoredAsset::query()
-            ->where('is_active', true)
-            ->where('eligible_for_calls', true)
-            ->when($this->ticker, static function ($query, string $ticker): void {
-                $query->where('ticker', strtoupper($ticker));
-            })
-            ->select(['id', 'ticker'])
-            ->orderBy('id')
-            ->cursor();
+        $assets = $monitoredAssetRepository->cursorForCalls($this->ticker);
 
         foreach ($assets as $asset) {
             try {
-                $quotes = $asset->quotes()
-                    ->orderByDesc('trade_date')
-                    ->limit(self::SCORE_LOOKBACK_CANDLES)
-                    ->get(['trade_date', 'open', 'high', 'low', 'close', 'volume'])
+                $quotes = $assetQuoteRepository
+                    ->findByAssetDescending((int) $asset->id, self::SCORE_LOOKBACK_CANDLES)
                     ->reverse()
                     ->values()
                     ->map(static fn ($quote): array => [
-                    'trade_date' => $quote->trade_date->toDateString(),
-                    'open' => (float) $quote->open,
-                    'high' => (float) $quote->high,
-                    'low' => (float) $quote->low,
-                    'close' => (float) $quote->close,
-                    'volume' => (int) $quote->volume,
-                    ])->all();
+                        'trade_date' => $quote->trade_date->toDateString(),
+                        'open'       => (float) $quote->open,
+                        'high'       => (float) $quote->high,
+                        'low'        => (float) $quote->low,
+                        'close'      => (float) $quote->close,
+                        'volume'     => (int) $quote->volume,
+                    ])
+                    ->all();
 
-                $indicators = $asset->indicators()
-                    ->orderByDesc('trade_date')
-                    ->limit(self::SCORE_LOOKBACK_CANDLES)
-                    ->get()
+                $indicators = $indicatorRepository
+                    ->findByAssetDescending((int) $asset->id, self::SCORE_LOOKBACK_CANDLES)
                     ->reverse()
                     ->values()
                     ->map(static fn ($row): array => $row->toArray())
@@ -79,10 +75,10 @@ class RecalculateScoresJob implements ShouldQueue
                 }
 
                 $latestIndicator = $indicators[count($indicators) - 1];
-                $history = array_slice($indicators, -5);
+                $history         = array_slice($indicators, -5);
                 $latestTradeDate = $quotes[count($quotes) - 1]['trade_date'];
 
-                $marketContext = $marketContextService->resolve(new \DateTimeImmutable($latestTradeDate));
+                $marketContext = $marketContextService->resolve(new DateTimeImmutable($latestTradeDate));
 
                 $decision = $tradeDecisionEngine->evaluate($asset->ticker, $quotes, [
                     'current' => $latestIndicator,
@@ -91,39 +87,38 @@ class RecalculateScoresJob implements ShouldQueue
 
                 $breakdown = $decision->scoreBreakdown;
 
-                AssetAnalysisScore::query()->updateOrCreate([
-                    'monitored_asset_id' => $asset->id,
-                    'trade_date' => $decision->tradeDate->toDateString(),
-                ], [
-                    'trend_score' => (float) ($breakdown['trend_score'] ?? 0.0),
-                    'moving_average_score' => (float) ($breakdown['moving_average_score'] ?? 0.0),
-                    'structure_score' => (float) ($breakdown['structure_score'] ?? 0.0),
-                    'momentum_score' => (float) ($breakdown['momentum_score'] ?? 0.0),
-                    'volume_score' => (float) ($breakdown['volume_score'] ?? 0.0),
-                    'risk_score' => (float) ($breakdown['risk_score'] ?? 0.0),
-                    'market_context_score' => (float) ($breakdown['market_context_score'] ?? 0.0),
-                    'final_score' => (float) ($breakdown['final_score'] ?? 0.0),
-                    'classification' => (string) ($decision->classification),
-                    'setup_code' => $decision->setupCode,
-                    'setup_label' => $decision->setupLabel,
-                    'recommendation' => $decision->recommendation,
-                    'suggested_entry' => $decision->entry,
-                    'suggested_stop' => $decision->stop,
-                    'suggested_target' => $decision->target,
-                    'risk_percent' => $decision->riskPercent,
-                    'reward_percent' => $decision->rewardPercent,
-                    'rr_ratio' => $decision->rrRatio,
-                    'alert_flags' => $decision->alerts,
-                    'rationale' => $decision->rationale,
-                    'raw_payload' => [
-                        'score_breakdown' => $decision->scoreBreakdown,
+                $scoreRepository->upsertScore(
+                    (int) $asset->id,
+                    $decision->tradeDate->toDateString(),
+                    [
+                        'trend_score'          => (float) ($breakdown['trend_score'] ?? 0.0),
+                        'moving_average_score' => (float) ($breakdown['moving_average_score'] ?? 0.0),
+                        'structure_score'      => (float) ($breakdown['structure_score'] ?? 0.0),
+                        'momentum_score'       => (float) ($breakdown['momentum_score'] ?? 0.0),
+                        'volume_score'         => (float) ($breakdown['volume_score'] ?? 0.0),
+                        'risk_score'           => (float) ($breakdown['risk_score'] ?? 0.0),
+                        'market_context_score' => (float) ($breakdown['market_context_score'] ?? 0.0),
+                        'final_score'          => (float) ($breakdown['final_score'] ?? 0.0),
+                        'classification'       => (string) $decision->classification,
+                        'setup_code'           => $decision->setupCode,
+                        'setup_label'          => $decision->setupLabel,
+                        'recommendation'       => $decision->recommendation,
+                        'suggested_entry'      => $decision->entry,
+                        'suggested_stop'       => $decision->stop,
+                        'suggested_target'     => $decision->target,
+                        'risk_percent'         => $decision->riskPercent,
+                        'reward_percent'       => $decision->rewardPercent,
+                        'rr_ratio'             => $decision->rrRatio,
+                        'alert_flags'          => $decision->alerts,
+                        'rationale'            => $decision->rationale,
+                        'raw_payload'          => ['score_breakdown' => $decision->scoreBreakdown],
                     ],
-                ]);
+                );
 
                 $processed++;
 
                 $syncLogger->log($run, 'info', "Score atualizado para {$asset->ticker}", [
-                    'final_score' => $breakdown['final_score'] ?? null,
+                    'final_score'    => $breakdown['final_score'] ?? null,
                     'recommendation' => $decision->recommendation,
                 ]);
             } catch (Throwable $exception) {

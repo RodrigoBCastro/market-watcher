@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Services\Trading;
 
+use App\Contracts\AssetMasterRepositoryInterface;
 use App\Contracts\AssetUniverseBootstrapServiceInterface;
 use App\Contracts\MarketUniverseServiceInterface;
+use App\Contracts\MonitoredAssetRepositoryInterface;
 use App\Enums\AssetType;
-use App\Models\AssetMaster;
 use App\Models\MonitoredAsset;
 
 class AssetUniverseBootstrapService implements AssetUniverseBootstrapServiceInterface
 {
-    public function __construct(private readonly MarketUniverseServiceInterface $marketUniverseService)
-    {
+    public function __construct(
+        private readonly MarketUniverseServiceInterface   $marketUniverseService,
+        private readonly AssetMasterRepositoryInterface   $assetMasterRepository,
+        private readonly MonitoredAssetRepositoryInterface $monitoredAssetRepository,
+    ) {
     }
 
     public function bootstrapDataUniverse(array $filters = [], ?int $changedByUserId = null): array
@@ -23,73 +27,53 @@ class AssetUniverseBootstrapService implements AssetUniverseBootstrapServiceInte
             $assetTypes = [AssetType::STOCK->value];
         }
 
-        $limit = max(1, min((int) ($filters['limit'] ?? config('market.bootstrap.default_limit', 1000)), 5000));
-        $priceMin = isset($filters['price_min']) ? (float) $filters['price_min'] : null;
+        $filters['asset_types'] = $assetTypes;
+        $filters['limit']       = max(1, min((int) ($filters['limit'] ?? config('market.bootstrap.default_limit', 1000)), 5000));
+
+        $priceMin     = isset($filters['price_min'])      ? (float) $filters['price_min']      : null;
         $marketCapMin = isset($filters['market_cap_min']) ? (float) $filters['market_cap_min'] : null;
-        $volumeMin = isset($filters['volume_min']) ? (float) $filters['volume_min'] : null;
-        $sectors = is_array($filters['sectors'] ?? null) ? array_values(array_filter(array_map(static fn ($item): string => trim((string) $item), $filters['sectors']))) : [];
+        $volumeMin    = isset($filters['volume_min'])     ? (float) $filters['volume_min']     : null;
+        $sectors      = is_array($filters['sectors'] ?? null)
+            ? array_values(array_filter(array_map(static fn ($s): string => trim((string) $s), $filters['sectors'])))
+            : [];
 
-        $query = AssetMaster::query()
-            ->where('is_active', true)
-            ->where('is_listed', true)
-            ->whereIn('asset_type', $assetTypes)
-            ->orderBy('symbol');
+        $selected = $this->assetMasterRepository->findEligibleForBootstrap($filters);
 
-        if ($priceMin !== null) {
-            $query->where('last_close', '>=', $priceMin);
-        }
-
-        if ($marketCapMin !== null) {
-            $query->where('market_cap', '>=', $marketCapMin);
-        }
-
-        if ($volumeMin !== null) {
-            $query->where('last_volume', '>=', $volumeMin);
-        }
-
-        if ($sectors !== []) {
-            $query->whereIn('sector', $sectors);
-        }
-
-        $selected = $query->limit($limit)->get();
-
-        $inserted = 0;
-        $updated = 0;
+        $inserted               = 0;
+        $updated                = 0;
         $promotedToDataUniverse = 0;
-        $errors = 0;
+        $errors                 = 0;
 
         foreach ($selected as $assetMaster) {
             try {
-                $model = MonitoredAsset::query()->firstOrNew([
-                    'ticker' => strtoupper($assetMaster->symbol),
-                ]);
+                $existing = $this->monitoredAssetRepository->findByTicker($assetMaster->symbol);
+                $model    = $existing ?? new MonitoredAsset(['ticker' => strtoupper($assetMaster->symbol)]);
+                $isNew    = $existing === null;
 
-                $isNew = ! $model->exists;
                 $wasInDataUniverse = (bool) $model->collect_data;
-
-                $currentMetadata = is_array($model->metadata) ? $model->metadata : [];
+                $currentMetadata   = is_array($model->metadata) ? $model->metadata : [];
 
                 $model->fill([
-                    'asset_master_id' => (int) $assetMaster->id,
-                    'name' => $assetMaster->name,
-                    'sector' => $assetMaster->sector,
-                    'is_active' => true,
+                    'asset_master_id'    => (int) $assetMaster->id,
+                    'name'               => $assetMaster->name,
+                    'sector'             => $assetMaster->sector,
+                    'is_active'          => true,
                     'monitoring_enabled' => true,
-                    'collect_data' => true,
-                    'metadata' => array_merge($currentMetadata, [
+                    'collect_data'       => true,
+                    'metadata'           => array_merge($currentMetadata, [
                         'asset_master' => [
-                            'source' => $assetMaster->source,
+                            'source'     => $assetMaster->source,
                             'asset_type' => $assetMaster->asset_type,
-                            'last_sync' => now()->toIso8601String(),
+                            'last_sync'  => now()->toIso8601String(),
                         ],
                     ]),
                 ]);
 
                 if ($isNew) {
-                    $model->save();
+                    $this->monitoredAssetRepository->save($model);
                     $inserted++;
                 } elseif ($model->isDirty()) {
-                    $model->save();
+                    $this->monitoredAssetRepository->save($model);
                     $updated++;
                 }
 
@@ -110,18 +94,18 @@ class AssetUniverseBootstrapService implements AssetUniverseBootstrapServiceInte
         }
 
         return [
-            'selected' => $selected->count(),
-            'inserted' => $inserted,
-            'updated' => $updated,
+            'selected'                  => $selected->count(),
+            'inserted'                  => $inserted,
+            'updated'                   => $updated,
             'promoted_to_data_universe' => $promotedToDataUniverse,
-            'errors' => $errors,
-            'filters' => [
-                'asset_types' => $assetTypes,
-                'price_min' => $priceMin,
+            'errors'                    => $errors,
+            'filters'                   => [
+                'asset_types'    => $assetTypes,
+                'price_min'      => $priceMin,
                 'market_cap_min' => $marketCapMin,
-                'volume_min' => $volumeMin,
-                'sectors' => $sectors,
-                'limit' => $limit,
+                'volume_min'     => $volumeMin,
+                'sectors'        => $sectors,
+                'limit'          => $filters['limit'],
             ],
         ];
     }
