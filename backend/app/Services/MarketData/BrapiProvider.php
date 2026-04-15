@@ -39,6 +39,12 @@ class BrapiProvider implements MarketDataProviderInterface
             return [];
         }
 
+        $requestedLookup = [];
+        foreach ($normalizedSymbols as $requestedSymbol) {
+            $requestedLookup[$requestedSymbol] = $requestedSymbol;
+            $requestedLookup[$this->normalizeReturnedSymbol($requestedSymbol)] = $requestedSymbol;
+        }
+
         if (count($normalizedSymbols) > 20) {
             throw new RuntimeException('A brapi permite no máximo 20 símbolos por requisição de histórico.');
         }
@@ -75,10 +81,14 @@ class BrapiProvider implements MarketDataProviderInterface
                 continue;
             }
 
-            $symbol = strtoupper((string) ($result['symbol'] ?? $result['stock'] ?? $result['ticker'] ?? ''));
-            if ($symbol === '') {
+            $rawSymbol = strtoupper((string) ($result['symbol'] ?? $result['stock'] ?? $result['ticker'] ?? ''));
+            if ($rawSymbol === '') {
                 continue;
             }
+
+            $symbol = $requestedLookup[$rawSymbol]
+                ?? $requestedLookup[$this->normalizeReturnedSymbol($rawSymbol)]
+                ?? $rawSymbol;
 
             if (! array_key_exists($symbol, $quotesBySymbol)) {
                 $quotesBySymbol[$symbol] = [];
@@ -296,6 +306,17 @@ class BrapiProvider implements MarketDataProviderInterface
             static fn (string $symbol): string => strtoupper(trim($symbol)),
             $symbols,
         ))));
+
+        return $normalized;
+    }
+
+    private function normalizeReturnedSymbol(string $symbol): string
+    {
+        $normalized = strtoupper(trim($symbol));
+
+        if (str_ends_with($normalized, '.SA')) {
+            return substr($normalized, 0, -3);
+        }
 
         return $normalized;
     }

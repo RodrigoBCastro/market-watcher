@@ -17,15 +17,16 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Collection;
+use RuntimeException;
 use Throwable;
 
 class SyncDataUniverseJob implements ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 3;
+    public int $tries = 1;
 
-    public int $timeout = 180;
+    public int $timeout = 1200;
 
     private AssetQuoteRepositoryInterface $assetQuoteRepository;
 
@@ -109,11 +110,18 @@ class SyncDataUniverseJob implements ShouldQueue
                 mode: 'bootstrap',
                 modeLabel: 'bootstrap_single',
                 fromDate: $fromDate,
-                quoteResolver: static fn (MonitoredAsset $asset): array => $provider->getHistoricalQuotes(
-                    strtoupper($asset->ticker),
-                    $days,
-                    $fromDate,
-                ),
+                quoteResolver: function (MonitoredAsset $asset) use ($provider, $syncLogger, $run, $days, $fromDate): array {
+                    $ticker = strtoupper($asset->ticker);
+                    return $this->fetchHistoricalQuotesWithRetry(
+                        provider: $provider,
+                        syncLogger: $syncLogger,
+                        run: $run,
+                        ticker: $ticker,
+                        days: $days,
+                        fromDate: $fromDate,
+                        modeLabel: 'bootstrap_single',
+                    );
+                },
             );
 
             $processed += $bootstrapProcessed;
@@ -142,15 +150,35 @@ class SyncDataUniverseJob implements ShouldQueue
                 mode: 'rolling',
                 modeLabel: 'rolling_batch',
                 fromDate: $fromDate,
-                quoteResolver: static function (MonitoredAsset $asset) use ($provider, $days, $rollingBatchQuotes): array {
+                quoteResolver: function (MonitoredAsset $asset) use ($provider, $syncLogger, $run, $days, $rollingBatchQuotes): array {
                     $ticker = strtoupper($asset->ticker);
                     $quotes = $rollingBatchQuotes[$ticker] ?? null;
 
-                    if ($quotes !== null) {
+                    if ($quotes !== null && $quotes !== []) {
                         return $quotes;
                     }
 
-                    return $provider->getHistoricalQuotes($ticker, $days, null);
+                    if ($quotes === []) {
+                        $syncLogger->log(
+                            run: $run,
+                            level: 'warning',
+                            message: "Lote rolling retornou vazio para {$ticker}. Fallback para sync individual.",
+                            context: [
+                                'ticker' => $ticker,
+                                'days' => $days,
+                            ],
+                        );
+                    }
+
+                    return $this->fetchHistoricalQuotesWithRetry(
+                        provider: $provider,
+                        syncLogger: $syncLogger,
+                        run: $run,
+                        ticker: $ticker,
+                        days: $days,
+                        fromDate: null,
+                        modeLabel: 'rolling_single_fallback',
+                    );
                 },
             );
 
@@ -246,7 +274,15 @@ class SyncDataUniverseJob implements ShouldQueue
         ?string $fromDate,
         array $quotes,
     ): int {
-        $state  = $stateByAssetId->get((int) $asset->id);
+        $records = count($quotes);
+        $minRecordsPerAsset = $this->resolveMinRecordsPerAsset();
+        if ($records < $minRecordsPerAsset) {
+            throw new RuntimeException(
+                "Resposta insuficiente do provedor para {$asset->ticker} (records={$records}, min_expected={$minRecordsPerAsset}).",
+            );
+        }
+
+        $state = $stateByAssetId->get((int) $asset->id);
         $result = $this->assetQuoteRepository->upsertBatch((int) $asset->id, $quotes);
 
         $updatedState = $this->updateSyncStateAfterSuccess(
@@ -260,7 +296,7 @@ class SyncDataUniverseJob implements ShouldQueue
         $stateByAssetId->put((int) $asset->id, $updatedState);
 
         $syncLogger->log($run, 'info', "Data Universe sincronizado para {$asset->ticker}", [
-            'records'      => count($quotes),
+            'records'      => $records,
             'mode'         => $modeLabel,
             'state_status' => $updatedState->status,
         ]);
@@ -333,6 +369,21 @@ class SyncDataUniverseJob implements ShouldQueue
         return max(1, (int) config('market.sync.asset_days', 90));
     }
 
+    private function resolveMinRecordsPerAsset(): int
+    {
+        return max(1, (int) config('market.sync.min_records_per_asset', 1));
+    }
+
+    private function resolveEmptyQuoteRetryAttempts(): int
+    {
+        return max(1, min((int) config('market.sync.empty_quotes_retries', 2), 5));
+    }
+
+    private function resolveEmptyQuoteRetrySleepMs(): int
+    {
+        return max(0, min((int) config('market.sync.empty_quotes_retry_sleep_ms', 250), 5000));
+    }
+
     private function resolveFromDate(int $startYearsBack): ?string
     {
         if ($startYearsBack <= 0) {
@@ -350,6 +401,75 @@ class SyncDataUniverseJob implements ShouldQueue
     private function resolveBatchSize(): int
     {
         return max(1, min((int) config('market.sync.batch_size', 20), 20));
+    }
+
+    private function fetchHistoricalQuotesWithRetry(
+        MarketDataProviderInterface $provider,
+        SyncLogger $syncLogger,
+        SyncRun $run,
+        string $ticker,
+        int $days,
+        ?string $fromDate,
+        string $modeLabel,
+    ): array {
+        $attempts = $this->resolveEmptyQuoteRetryAttempts();
+        $retrySleepMs = $this->resolveEmptyQuoteRetrySleepMs();
+        $minRecords = $this->resolveMinRecordsPerAsset();
+        $lastQuotes = [];
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            try {
+                $quotes = $provider->getHistoricalQuotes($ticker, $days, $fromDate);
+            } catch (Throwable $exception) {
+                if ($attempt >= $attempts) {
+                    throw $exception;
+                }
+
+                $syncLogger->log(
+                    run: $run,
+                    level: 'warning',
+                    message: "Falha ao buscar histórico de {$ticker}. Nova tentativa agendada.",
+                    context: [
+                        'mode' => $modeLabel,
+                        'attempt' => $attempt,
+                        'attempts_total' => $attempts,
+                        'error' => $exception->getMessage(),
+                    ],
+                );
+
+                if ($retrySleepMs > 0) {
+                    usleep($retrySleepMs * 1000);
+                }
+
+                continue;
+            }
+
+            $lastQuotes = $quotes;
+            if (count($quotes) >= $minRecords) {
+                return $quotes;
+            }
+
+            if ($attempt < $attempts) {
+                $syncLogger->log(
+                    run: $run,
+                    level: 'warning',
+                    message: "Resposta vazia para {$ticker}. Nova tentativa de coleta.",
+                    context: [
+                        'mode' => $modeLabel,
+                        'attempt' => $attempt,
+                        'attempts_total' => $attempts,
+                        'records' => count($quotes),
+                        'min_expected' => $minRecords,
+                    ],
+                );
+
+                if ($retrySleepMs > 0) {
+                    usleep($retrySleepMs * 1000);
+                }
+            }
+        }
+
+        return $lastQuotes;
     }
 
     private function resolveMode(?AssetHistorySyncState $state, ?string $fromDate): string

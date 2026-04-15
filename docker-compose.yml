@@ -44,7 +44,8 @@ services:
   queue:
     <<: *backend-base
     container_name: marketwatcher-queue
-    command: php artisan queue:work --verbose --tries=3 --timeout=90
+    restart: unless-stopped
+    command: php artisan queue:work --verbose --tries=1 --timeout=1200 --sleep=2 --backoff=5
     depends_on:
       app:
         condition: service_started
@@ -56,6 +57,7 @@ services:
   scheduler:
     <<: *backend-base
     container_name: marketwatcher-scheduler
+    restart: unless-stopped
     command: php artisan schedule:work
     depends_on:
       app:

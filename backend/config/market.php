@@ -7,6 +7,9 @@ return [
         'asset_days' => (int) env('MARKET_SYNC_ASSET_DAYS', 90),
         'start_years_back' => (int) env('MARKET_SYNC_START_YEARS_BACK', 10),
         'batch_size' => (int) env('MARKET_SYNC_BATCH_SIZE', 20),
+        'min_records_per_asset' => (int) env('MARKET_SYNC_MIN_RECORDS_PER_ASSET', 1),
+        'empty_quotes_retries' => (int) env('MARKET_SYNC_EMPTY_QUOTES_RETRIES', 2),
+        'empty_quotes_retry_sleep_ms' => (int) env('MARKET_SYNC_EMPTY_QUOTES_RETRY_SLEEP_MS', 250),
     ],
     'asset_master' => [
         'delist_after_missing_syncs' => (int) env('ASSET_MASTER_DELIST_AFTER_MISSING_SYNCS', 3),
