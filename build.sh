@@ -1,9 +1,12 @@
 set -e
 
-# copia backend para raiz (ESSENCIAL)
+# copia backend para raiz
 cp -Rf backend/. .
 
-# instala Laravel
+# remove pasta antiga (CRÍTICO)
+rm -rf backend
+
+# instala dependências
 composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
 # build frontend
@@ -11,9 +14,10 @@ cd frontend
 npm ci
 npm run build
 
-# copia build pro public
+# copia build
 cp -Rf dist/. ../public/
 
-# otimiza
 cd ..
+
+# otimiza Laravel
 php artisan optimize
