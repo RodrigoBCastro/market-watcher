@@ -48,7 +48,7 @@ export function createMarketApi(getToken) {
     getAlerts: (params = {}) => http.get(`/alerts${buildQuery(params)}`),
     readAlert: (id) => http.post(`/alerts/${id}/read`, {}),
 
-    getAssets: () => http.get('/assets'),
+    getAssets: (params = {}) => http.get(`/assets${buildQuery(params)}`),
     createAsset: (payload) => http.post('/assets', payload),
     updateAsset: (id, payload) => http.patch(`/assets/${id}`, payload),
     deleteAsset: (id) => http.delete(`/assets/${id}`),

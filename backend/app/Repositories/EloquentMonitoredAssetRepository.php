@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use App\Contracts\MonitoredAssetRepositoryInterface;
+use App\Models\AssetAnalysisScore;
 use App\Models\MonitoredAsset;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
 
@@ -101,6 +103,41 @@ class EloquentMonitoredAssetRepository implements MonitoredAssetRepositoryInterf
             ->with(['assetMaster', 'latestAnalysisScore', 'universeMemberships', 'historySyncState'])
             ->orderBy('ticker')
             ->get();
+    }
+
+    public function paginateForListing(int $page, int $perPage, string $sortBy, string $sortDirection): LengthAwarePaginator
+    {
+        $safePerPage = max(1, min($perPage, 200));
+        $safePage = max(1, $page);
+        $safeSortDirection = strtolower($sortDirection) === 'desc' ? 'desc' : 'asc';
+        $allowedSortColumns = [
+            'ticker' => 'ticker',
+            'name' => 'name',
+            'sector' => 'sector',
+            'universe_type' => 'universe_type',
+            'is_active' => 'is_active',
+            'monitoring_enabled' => 'monitoring_enabled',
+        ];
+
+        $query = MonitoredAsset::query()
+            ->with(['assetMaster', 'latestAnalysisScore', 'universeMemberships', 'historySyncState']);
+
+        if ($sortBy === 'latest_score') {
+            $latestScoreSubquery = AssetAnalysisScore::query()
+                ->select('final_score')
+                ->whereColumn('asset_analysis_scores.monitored_asset_id', 'monitored_assets.id')
+                ->orderByDesc('trade_date')
+                ->limit(1);
+
+            $query->orderBy($latestScoreSubquery, $safeSortDirection)
+                ->orderBy('ticker');
+        } else {
+            $column = $allowedSortColumns[$sortBy] ?? 'ticker';
+            $query->orderBy($column, $safeSortDirection)
+                ->orderBy('ticker');
+        }
+
+        return $query->paginate($safePerPage, ['*'], 'page', $safePage);
     }
 
     /**

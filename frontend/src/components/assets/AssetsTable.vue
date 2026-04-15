@@ -1,6 +1,5 @@
 <script setup>
-import DataTable from '../ui/DataTable.vue'
-import BaseButton from '../ui/BaseButton.vue'
+import DataTableComponent from '../ui/DataTableComponent.vue'
 import StatusBadge from '../ui/StatusBadge.vue'
 import { mdiDeleteOutline, mdiOpenInNew, mdiPencil, mdiSync } from '../../constants/icons'
 import { formatNumber } from '../../utils/format'
@@ -8,26 +7,131 @@ import { formatNumber } from '../../utils/format'
 const props = defineProps({
   items: { type: Array, default: () => [] },
   loadingTicker: { type: String, default: '' },
+  loading: { type: Boolean, default: false },
+  page: { type: Number, default: 1 },
+  perPage: { type: Number, default: 25 },
+  totalRows: { type: Number, default: 0 },
+  sortKey: { type: String, default: 'ticker' },
+  sortDirection: { type: String, default: 'asc' },
 })
 
-const emit = defineEmits(['open-asset', 'sync-asset', 'edit-asset', 'remove-asset'])
+const emit = defineEmits([
+  'open-asset',
+  'sync-asset',
+  'edit-asset',
+  'remove-asset',
+  'pagination-change',
+  'page-change',
+  'per-page-change',
+  'sort-change',
+])
 
 const columns = [
-  { key: 'ticker', label: 'Ticker' },
-  { key: 'name', label: 'Nome' },
-  { key: 'sector', label: 'Setor' },
-  { key: 'universe_type', label: 'Universo' },
-  { key: 'is_active', label: 'Ativo', align: 'center' },
-  { key: 'monitoring_enabled', label: 'Monitoramento', align: 'center' },
-  { key: 'latest_score', label: 'Score', align: 'right', format: (value) => formatNumber(value, 2) },
+  { key: 'ticker', label: 'Ticker', sortable: true, sortKey: 'ticker' },
+  { key: 'name', label: 'Nome', sortable: true, sortKey: 'name' },
+  { key: 'sector', label: 'Setor', sortable: true, sortKey: 'sector' },
+  { key: 'universe_type', label: 'Universo', sortable: true, sortKey: 'universe_type' },
+  { key: 'is_active', label: 'Ativo', align: 'center', sortable: true, sortKey: 'is_active' },
+  {
+    key: 'monitoring_enabled',
+    label: 'Monitoramento',
+    align: 'center',
+    sortable: true,
+    sortKey: 'monitoring_enabled',
+  },
+  {
+    key: 'latest_score',
+    label: 'Score',
+    align: 'right',
+    sortable: true,
+    sortKey: 'latest_score',
+    value: (row) => row.latest_analysis?.final_score,
+    format: (value) => formatNumber(value, 2),
+  },
   { key: 'latest_classification', label: 'Classificação' },
   { key: 'latest_recommendation', label: 'Recomendação' },
-  { key: 'actions', label: 'Ações', align: 'right' },
+  { key: 'actions', label: 'Ações', align: 'center', width: 190 },
 ]
+
+const rowActions = [
+  {
+    key: 'open',
+    variant: 'ghost',
+    iconPath: mdiOpenInNew,
+    iconOnly: true,
+    ariaLabel: (row) => `Abrir detalhes de ${row.ticker}`,
+    title: (row) => `Detalhes ${row.ticker}`,
+    onClick: ({ row }) => emit('open-asset', row.ticker),
+  },
+  {
+    key: 'sync',
+    variant: 'secondary',
+    iconPath: mdiSync,
+    iconOnly: true,
+    ariaLabel: (row) => `Sincronizar ${row.ticker}`,
+    title: (row) => `Sincronizar ${row.ticker}`,
+    loading: (row) => props.loadingTicker === row.ticker,
+    onClick: ({ row }) => emit('sync-asset', row.ticker),
+  },
+  {
+    key: 'edit',
+    variant: 'ghost',
+    iconPath: mdiPencil,
+    iconOnly: true,
+    ariaLabel: (row) => `Editar ${row.ticker}`,
+    title: (row) => `Editar ${row.ticker}`,
+    onClick: ({ row }) => emit('edit-asset', row),
+  },
+  {
+    key: 'remove',
+    variant: 'danger',
+    iconPath: mdiDeleteOutline,
+    iconOnly: true,
+    ariaLabel: (row) => `Remover ${row.ticker}`,
+    title: (row) => `Remover ${row.ticker}`,
+    onClick: ({ row }) => emit('remove-asset', row),
+  },
+]
+
+function scoreTone(value) {
+  const score = Number(value)
+  if (!Number.isFinite(score)) return 'neutral'
+  if (score >= 70) return 'positive'
+  if (score >= 55) return 'warning'
+  return 'negative'
+}
 </script>
 
 <template>
-  <DataTable :columns="columns" :rows="items" row-key="id" min-width="100%" wrap-cells>
+  <DataTableComponent
+    :columns="columns"
+    :rows="items"
+    :actions="rowActions"
+    :loading="loading"
+    :page="page"
+    :per-page="perPage"
+    :total-rows="totalRows"
+    :sort-key="sortKey"
+    :sort-direction="sortDirection"
+    row-key="id"
+    min-width="100%"
+    wrap-cells
+    enable-pagination
+    pagination-mode="server"
+    sort-mode="server"
+    :per-page-options="[10, 25, 50, 100]"
+    @pagination-change="emit('pagination-change', $event)"
+    @page-change="emit('page-change', $event)"
+    @per-page-change="emit('per-page-change', $event)"
+    @sort-change="emit('sort-change', $event)"
+  >
+    <template #cell-ticker="{ row, value }">
+      <button class="asset-ticker" type="button" @click="emit('open-asset', row.ticker)">
+        <span class="asset-ticker__symbol mono">{{ value }}</span>
+        <span class="asset-ticker__hint">Detalhes</span>
+      </button>
+    </template>
+
     <template #cell-sector="{ value }">
       <span>{{ value || '-' }}</span>
     </template>
@@ -45,7 +149,9 @@ const columns = [
     </template>
 
     <template #cell-latest_score="{ row }">
-      <span>{{ formatNumber(row.latest_analysis?.final_score, 2) }}</span>
+      <span class="asset-score" :class="`is-${scoreTone(row.latest_analysis?.final_score)}`">
+        {{ formatNumber(row.latest_analysis?.final_score, 2) }}
+      </span>
     </template>
 
     <template #cell-latest_classification="{ row }">
@@ -55,47 +161,60 @@ const columns = [
     <template #cell-latest_recommendation="{ row }">
       <StatusBadge :label="row.latest_analysis?.recommendation || 'observar'" />
     </template>
-
-    <template #cell-actions="{ row }">
-      <div class="inline-actions">
-        <BaseButton
-          size="sm"
-          variant="ghost"
-          :icon-path="mdiOpenInNew"
-          icon-only
-          :aria-label="`Abrir detalhes de ${row.ticker}`"
-          :title="`Detalhes ${row.ticker}`"
-          @click="emit('open-asset', row.ticker)"
-        />
-        <BaseButton
-          size="sm"
-          variant="secondary"
-          :icon-path="mdiSync"
-          icon-only
-          :aria-label="`Sincronizar ${row.ticker}`"
-          :title="`Sincronizar ${row.ticker}`"
-          :loading="loadingTicker === row.ticker"
-          @click="emit('sync-asset', row.ticker)"
-        />
-        <BaseButton
-          size="sm"
-          variant="ghost"
-          :icon-path="mdiPencil"
-          icon-only
-          :aria-label="`Editar ${row.ticker}`"
-          :title="`Editar ${row.ticker}`"
-          @click="emit('edit-asset', row)"
-        />
-        <BaseButton
-          size="sm"
-          variant="danger"
-          :icon-path="mdiDeleteOutline"
-          icon-only
-          :aria-label="`Remover ${row.ticker}`"
-          :title="`Remover ${row.ticker}`"
-          @click="emit('remove-asset', row)"
-        />
-      </div>
-    </template>
-  </DataTable>
+  </DataTableComponent>
 </template>
+
+<style scoped>
+.asset-ticker {
+  border: none;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.asset-ticker__symbol {
+  letter-spacing: 0.02em;
+  color: var(--text-main);
+  font-size: 0.86rem;
+}
+
+.asset-ticker__hint {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.asset-ticker:hover .asset-ticker__symbol {
+  color: var(--inline-link);
+}
+
+.asset-score {
+  min-width: 72px;
+  display: inline-flex;
+  justify-content: flex-end;
+  font-family: var(--font-mono);
+}
+
+.asset-score.is-positive {
+  color: var(--status-positive-fg);
+}
+
+.asset-score.is-warning {
+  color: var(--status-warning-fg);
+}
+
+.asset-score.is-negative {
+  color: var(--status-negative-fg);
+}
+
+.asset-score.is-neutral {
+  color: var(--text-muted);
+}
+
+:deep(.inline-actions) {
+  gap: 4px;
+}
+</style>

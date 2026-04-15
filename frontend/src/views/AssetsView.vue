@@ -23,23 +23,95 @@ const syncAction = ref('')
 const syncTicker = ref('')
 const error = ref('')
 const items = ref([])
+const tableState = ref({
+  page: 1,
+  perPage: 25,
+  totalRows: 0,
+  sortBy: 'ticker',
+  sortDirection: 'asc',
+})
 const showForm = ref(false)
 const editingAsset = ref(null)
 const removeTarget = ref(null)
 const removing = ref(false)
 
-async function loadAssets() {
+async function loadAssets(override = {}) {
   loading.value = true
   error.value = ''
 
+  const nextPage = Number(override.page ?? tableState.value.page) || 1
+  const nextPerPage = Number(override.perPage ?? tableState.value.perPage) || 25
+  const nextSortBy = override.sortBy ?? tableState.value.sortBy
+  const nextSortDirection = override.sortDirection ?? tableState.value.sortDirection
+
   try {
-    const response = await props.api.getAssets()
+    const response = await props.api.getAssets({
+      page: nextPage,
+      per_page: nextPerPage,
+      sort_by: nextSortBy,
+      sort_dir: nextSortDirection,
+    })
     items.value = response?.items || []
+
+    const pagination = response?.pagination || {}
+    const lastPage = Number(pagination.last_page ?? 1) || 1
+    if (items.value.length === 0 && nextPage > 1 && lastPage < nextPage) {
+      await loadAssets({
+        page: lastPage,
+        perPage: nextPerPage,
+        sortBy: nextSortBy,
+        sortDirection: nextSortDirection,
+      })
+      return
+    }
+
+    tableState.value = {
+      page: Number(pagination.current_page ?? nextPage) || 1,
+      perPage: Number(pagination.per_page ?? nextPerPage) || nextPerPage,
+      totalRows: Number(pagination.total ?? items.value.length) || 0,
+      sortBy: response?.sorting?.sort_by || nextSortBy,
+      sortDirection: response?.sorting?.sort_dir || nextSortDirection,
+    }
   } catch (requestError) {
     error.value = requestError?.message || 'Falha ao carregar ativos monitorados.'
   } finally {
     loading.value = false
   }
+}
+
+function handlePageChange(nextPage) {
+  const page = Number(nextPage) || 1
+  tableState.value = {
+    ...tableState.value,
+    page,
+  }
+  loadAssets({ page })
+}
+
+function handlePerPageChange(nextPerPage) {
+  const perPage = Number(nextPerPage) || tableState.value.perPage
+  tableState.value = {
+    ...tableState.value,
+    page: 1,
+    perPage,
+  }
+  loadAssets({ page: 1, perPage })
+}
+
+function handleSortChange(payload) {
+  const sortBy = payload?.field || tableState.value.sortBy
+  const sortDirection = payload?.direction || tableState.value.sortDirection
+  tableState.value = {
+    ...tableState.value,
+    page: 1,
+    sortBy,
+    sortDirection,
+  }
+  loadAssets({
+    page: 1,
+    sortBy,
+    sortDirection,
+  })
 }
 
 function createAsset() {
@@ -191,17 +263,26 @@ onMounted(loadAssets)
       @sync-full="runBulkSync('full')"
     />
 
-    <LoadingState v-if="loading" />
+    <LoadingState v-if="loading && items.length === 0" />
     <p v-else-if="error" class="form-error">{{ error }}</p>
 
     <BaseCard v-else>
       <AssetsTable
         :items="items"
+        :loading="loading"
         :loading-ticker="syncTicker"
+        :page="tableState.page"
+        :per-page="tableState.perPage"
+        :total-rows="tableState.totalRows"
+        :sort-key="tableState.sortBy"
+        :sort-direction="tableState.sortDirection"
         @open-asset="emit('open-asset', $event)"
         @sync-asset="syncAsset"
         @edit-asset="editAsset"
         @remove-asset="removeAsset"
+        @page-change="handlePageChange"
+        @per-page-change="handlePerPageChange"
+        @sort-change="handleSortChange"
       />
     </BaseCard>
 

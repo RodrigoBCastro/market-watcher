@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Contracts;
 
 use App\Models\MonitoredAsset;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
 
@@ -43,6 +44,14 @@ interface MonitoredAssetRepositoryInterface
      * Used by AssetController::index().
      */
     public function findAllForListing(): Collection;
+
+    /**
+     * Paginated listing with sorting support for watchlist table.
+     *
+     * @param  string  $sortBy  Allowed: ticker,name,sector,universe_type,is_active,monitoring_enabled,latest_score
+     * @param  string  $sortDirection  asc|desc
+     */
+    public function paginateForListing(int $page, int $perPage, string $sortBy, string $sortDirection): LengthAwarePaginator;
 
     /**
      * @param  array<string, mixed>  $data

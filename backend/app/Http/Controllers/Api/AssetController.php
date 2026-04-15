@@ -10,7 +10,9 @@ use App\Contracts\MonitoredAssetRepositoryInterface;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAssetRequest;
 use App\Http\Requests\UpdateAssetRequest;
+use App\Models\MonitoredAsset;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AssetController extends Controller
 {
@@ -21,65 +23,110 @@ class AssetController extends Controller
     ) {
     }
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $assets = $this->monitoredAssetRepository
-            ->findAllForListing()
-            ->map(static function ($asset): array {
-                $latestScore = $asset->latestAnalysisScore;
-                $memberships = $asset->universeMemberships->keyBy('universe_type');
-                $historySync = $asset->historySyncState;
+        $page = max(1, (int) ($request->query('page') ?? 1));
+        $perPage = max(1, min((int) ($request->query('per_page') ?? 25), 200));
+        $allowedSortBy = [
+            'ticker',
+            'name',
+            'sector',
+            'universe_type',
+            'is_active',
+            'monitoring_enabled',
+            'latest_score',
+        ];
+        $sortBy = (string) ($request->query('sort_by') ?? 'ticker');
+        if (!in_array($sortBy, $allowedSortBy, true)) {
+            $sortBy = 'ticker';
+        }
+        $sortDirection = strtolower((string) ($request->query('sort_dir') ?? 'asc')) === 'desc' ? 'desc' : 'asc';
 
-                return [
-                    'id'                    => $asset->id,
-                    'ticker'                => $asset->ticker,
-                    'name'                  => $asset->name,
-                    'sector'                => $asset->sector,
-                    'is_active'             => $asset->is_active,
-                    'monitoring_enabled'    => $asset->monitoring_enabled,
-                    'collect_data'          => $asset->collect_data,
-                    'eligible_for_analysis' => $asset->eligible_for_analysis,
-                    'eligible_for_calls'    => $asset->eligible_for_calls,
-                    'eligible_for_execution'=> $asset->eligible_for_execution,
-                    'universe_type'         => $asset->universe_type,
-                    'liquidity_score'       => $asset->liquidity_score,
-                    'operability_score'     => $asset->operability_score,
-                    'metadata'              => $asset->metadata,
-                    'history_sync'          => $historySync !== null ? [
-                        'status'                   => $historySync->status,
-                        'bootstrap_from_date'       => $historySync->bootstrap_from_date?->toDateString(),
-                        'earliest_quote_date_found' => $historySync->earliest_quote_date_found?->toDateString(),
-                        'latest_quote_date_synced'  => $historySync->latest_quote_date_synced?->toDateString(),
-                        'last_mode_used'            => $historySync->last_mode_used,
-                        'bootstrap_completed_at'    => $historySync->bootstrap_completed_at?->toIso8601String(),
-                        'last_bootstrap_at'         => $historySync->last_bootstrap_at?->toIso8601String(),
-                        'last_rolling_at'           => $historySync->last_rolling_at?->toIso8601String(),
-                        'last_error'                => $historySync->last_error,
-                    ] : null,
-                    'asset_master' => $asset->assetMaster !== null ? [
-                        'id'         => (int) $asset->assetMaster->id,
-                        'symbol'     => $asset->assetMaster->symbol,
-                        'asset_type' => $asset->assetMaster->asset_type,
-                        'is_listed'  => (bool) $asset->assetMaster->is_listed,
-                    ] : null,
-                    'memberships' => [
-                        'data_universe'     => (bool) ($memberships->get('data_universe')?->is_active     ?? false),
-                        'eligible_universe' => (bool) ($memberships->get('eligible_universe')?->is_active ?? false),
-                        'trading_universe'  => (bool) ($memberships->get('trading_universe')?->is_active  ?? false),
-                    ],
-                    'latest_analysis' => $latestScore !== null ? [
-                        'trade_date'     => $latestScore->trade_date?->toDateString(),
-                        'final_score'    => (float) $latestScore->final_score,
-                        'classification' => $latestScore->classification,
-                        'recommendation' => $latestScore->recommendation,
-                        'setup_label'    => $latestScore->setup_label,
-                    ] : null,
-                ];
-            });
+        $assetsPaginator = $this->monitoredAssetRepository->paginateForListing(
+            page: $page,
+            perPage: $perPage,
+            sortBy: $sortBy,
+            sortDirection: $sortDirection,
+        );
+
+        $assets = $assetsPaginator
+            ->setCollection(
+                $assetsPaginator
+                    ->getCollection()
+                    ->map(fn (MonitoredAsset $asset): array => $this->serializeAsset($asset)),
+            );
 
         return response()->json([
-            'items' => $assets,
+            'items' => $assets->items(),
+            'pagination' => [
+                'current_page' => $assets->currentPage(),
+                'per_page' => $assets->perPage(),
+                'total' => $assets->total(),
+                'last_page' => $assets->lastPage(),
+                'from' => $assets->firstItem(),
+                'to' => $assets->lastItem(),
+            ],
+            'sorting' => [
+                'sort_by' => $sortBy,
+                'sort_dir' => $sortDirection,
+            ],
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeAsset(MonitoredAsset $asset): array
+    {
+        $latestScore = $asset->latestAnalysisScore;
+        $memberships = $asset->universeMemberships->keyBy('universe_type');
+        $historySync = $asset->historySyncState;
+
+        return [
+            'id'                    => $asset->id,
+            'ticker'                => $asset->ticker,
+            'name'                  => $asset->name,
+            'sector'                => $asset->sector,
+            'is_active'             => $asset->is_active,
+            'monitoring_enabled'    => $asset->monitoring_enabled,
+            'collect_data'          => $asset->collect_data,
+            'eligible_for_analysis' => $asset->eligible_for_analysis,
+            'eligible_for_calls'    => $asset->eligible_for_calls,
+            'eligible_for_execution'=> $asset->eligible_for_execution,
+            'universe_type'         => $asset->universe_type,
+            'liquidity_score'       => $asset->liquidity_score,
+            'operability_score'     => $asset->operability_score,
+            'metadata'              => $asset->metadata,
+            'history_sync'          => $historySync !== null ? [
+                'status'                   => $historySync->status,
+                'bootstrap_from_date'       => $historySync->bootstrap_from_date?->toDateString(),
+                'earliest_quote_date_found' => $historySync->earliest_quote_date_found?->toDateString(),
+                'latest_quote_date_synced'  => $historySync->latest_quote_date_synced?->toDateString(),
+                'last_mode_used'            => $historySync->last_mode_used,
+                'bootstrap_completed_at'    => $historySync->bootstrap_completed_at?->toIso8601String(),
+                'last_bootstrap_at'         => $historySync->last_bootstrap_at?->toIso8601String(),
+                'last_rolling_at'           => $historySync->last_rolling_at?->toIso8601String(),
+                'last_error'                => $historySync->last_error,
+            ] : null,
+            'asset_master' => $asset->assetMaster !== null ? [
+                'id'         => (int) $asset->assetMaster->id,
+                'symbol'     => $asset->assetMaster->symbol,
+                'asset_type' => $asset->assetMaster->asset_type,
+                'is_listed'  => (bool) $asset->assetMaster->is_listed,
+            ] : null,
+            'memberships' => [
+                'data_universe'     => (bool) ($memberships->get('data_universe')?->is_active     ?? false),
+                'eligible_universe' => (bool) ($memberships->get('eligible_universe')?->is_active ?? false),
+                'trading_universe'  => (bool) ($memberships->get('trading_universe')?->is_active  ?? false),
+            ],
+            'latest_analysis' => $latestScore !== null ? [
+                'trade_date'     => $latestScore->trade_date?->toDateString(),
+                'final_score'    => (float) $latestScore->final_score,
+                'classification' => $latestScore->classification,
+                'recommendation' => $latestScore->recommendation,
+                'setup_label'    => $latestScore->setup_label,
+            ] : null,
+        ];
     }
 
     public function store(StoreAssetRequest $request): JsonResponse
