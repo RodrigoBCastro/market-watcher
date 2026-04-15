@@ -15,7 +15,7 @@ const form = reactive({
   type: '',
   sector: '',
   listed: '',
-  active: '',
+  blacklisted: '',
   universe: '',
 })
 
@@ -26,7 +26,7 @@ watch(
     form.type = value?.type || ''
     form.sector = value?.sector || ''
     form.listed = value?.listed ?? ''
-    form.active = value?.active ?? ''
+    form.blacklisted = value?.blacklisted ?? ''
     form.universe = value?.universe || ''
   },
   { immediate: true, deep: true },
@@ -38,7 +38,7 @@ function apply() {
     type: form.type || null,
     sector: form.sector || null,
     listed: form.listed === '' ? null : form.listed,
-    active: form.active === '' ? null : form.active,
+    blacklisted: form.blacklisted === '' ? null : form.blacklisted,
     universe: form.universe || null,
   }
 
@@ -91,11 +91,11 @@ function apply() {
     </label>
 
     <label>
-      Ativo
-      <select v-model="form.active" class="date-input">
+      Blacklist
+      <select v-model="form.blacklisted" class="date-input">
         <option value="">Todos</option>
-        <option value="true">Sim</option>
-        <option value="false">Não</option>
+        <option value="true">Bloqueados</option>
+        <option value="false">Permitidos</option>
       </select>
     </label>
 
@@ -104,4 +104,3 @@ function apply() {
     </div>
   </div>
 </template>
-

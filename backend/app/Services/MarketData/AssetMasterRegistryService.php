@@ -8,6 +8,7 @@ use App\Contracts\AssetMasterRegistryServiceInterface;
 use App\Contracts\AssetMasterRepositoryInterface;
 use App\Contracts\MarketDataProviderInterface;
 use App\Contracts\MarketIndexMasterRepositoryInterface;
+use App\Contracts\MarketUniverseServiceInterface;
 use App\Models\AssetMaster;
 use App\Models\MarketIndexMaster;
 use Carbon\CarbonInterface;
@@ -22,6 +23,7 @@ class AssetMasterRegistryService implements AssetMasterRegistryServiceInterface
         private readonly MarketDataProviderInterface $marketDataProvider,
         private readonly AssetMasterRepositoryInterface $assetMasterRepository,
         private readonly MarketIndexMasterRepositoryInterface $marketIndexMasterRepository,
+        private readonly MarketUniverseServiceInterface $marketUniverseService,
     ) {
     }
 
@@ -118,7 +120,6 @@ class AssetMasterRegistryService implements AssetMasterRegistryServiceInterface
                     'source'              => (string) ($item['source'] ?? 'brapi'),
                     'source_payload'      => $item['source_payload'] ?? null,
                     'is_listed'           => true,
-                    'is_active'           => true,
                     'missing_sync_count'  => 0,
                     'last_seen_at'        => $now,
                     'delisted_at'         => null,
@@ -166,7 +167,6 @@ class AssetMasterRegistryService implements AssetMasterRegistryServiceInterface
                     $asset->update([
                         'missing_sync_count' => $nextMissing,
                         'is_listed'          => $shouldDelist ? false : (bool) $asset->is_listed,
-                        'is_active'          => $shouldDelist ? false : (bool) $asset->is_active,
                         'delisted_at'        => $shouldDelist ? ($asset->delisted_at ?? $now) : $asset->delisted_at,
                         'delisting_reason'   => $shouldDelist ? 'Nao retornado pela fonte em sincronizacoes consecutivas.' : $asset->delisting_reason,
                     ]);
@@ -266,6 +266,55 @@ class AssetMasterRegistryService implements AssetMasterRegistryServiceInterface
         ];
     }
 
+    public function setMonitoringBlacklist(
+        string $symbol,
+        bool $isBlacklisted,
+        ?string $reason = null,
+        ?int $changedByUserId = null,
+    ): array {
+        $symbol = strtoupper(trim($symbol));
+        $reason = $reason !== null ? trim($reason) : null;
+        if ($reason === '') {
+            $reason = null;
+        }
+
+        $asset = $this->assetMasterRepository->findBySymbolWithRelations($symbol);
+
+        if ($asset === null) {
+            throw (new ModelNotFoundException())->setModel(AssetMaster::class, [$symbol]);
+        }
+
+        $asset->fill([
+            'is_blacklisted_for_monitoring' => $isBlacklisted,
+            'blacklisted_at' => $isBlacklisted ? now() : null,
+            'blacklist_reason' => $isBlacklisted
+                ? ($reason ?? $asset->blacklist_reason ?? 'Bloqueado manualmente para monitoramento.')
+                : null,
+        ]);
+
+        if ($asset->isDirty()) {
+            $this->assetMasterRepository->save($asset);
+        }
+
+        if ($isBlacklisted && $asset->monitoredAsset !== null) {
+            $this->marketUniverseService->updateMembership(
+                assetId: (int) $asset->monitoredAsset->id,
+                universeType: 'data_universe',
+                isActive: false,
+                manualReason: $asset->blacklist_reason ?? 'Ativo bloqueado para monitoramento no Asset Master.',
+                changedByUserId: $changedByUserId,
+            );
+        }
+
+        $fresh = $asset->fresh(['monitoredAsset.universeMemberships']);
+
+        if ($fresh === null) {
+            throw (new ModelNotFoundException())->setModel(AssetMaster::class, [$symbol]);
+        }
+
+        return $this->toArray($fresh);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -287,7 +336,9 @@ class AssetMasterRegistryService implements AssetMasterRegistryServiceInterface
             'market_cap'          => $asset->market_cap !== null ? (float) $asset->market_cap : null,
             'source'              => $asset->source,
             'is_listed'           => (bool) $asset->is_listed,
-            'is_active'           => (bool) $asset->is_active,
+            'is_blacklisted_for_monitoring' => (bool) $asset->is_blacklisted_for_monitoring,
+            'blacklisted_at'      => $asset->blacklisted_at?->toIso8601String(),
+            'blacklist_reason'    => $asset->blacklist_reason,
             'missing_sync_count'  => (int) $asset->missing_sync_count,
             'first_seen_at'       => $asset->first_seen_at?->toIso8601String(),
             'last_seen_at'        => $asset->last_seen_at?->toIso8601String(),
@@ -342,7 +393,6 @@ class AssetMasterRegistryService implements AssetMasterRegistryServiceInterface
 
             $asset->fill([
                 'is_listed'          => false,
-                'is_active'          => false,
                 'missing_sync_count' => max((int) $asset->missing_sync_count, max(1, $delistThreshold)),
                 'delisted_at'        => $asset->delisted_at ?? $now,
                 'delisting_reason'   => 'Ativo fracionario excluido do cadastro mestre.',

@@ -27,5 +27,14 @@ interface AssetMasterRegistryServiceInterface
      * @return array<string, mixed>
      */
     public function listIndexes(array $filters = []): array;
-}
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function setMonitoringBlacklist(
+        string $symbol,
+        bool $isBlacklisted,
+        ?string $reason = null,
+        ?int $changedByUserId = null,
+    ): array;
+}

@@ -32,8 +32,9 @@ class AssetController extends Controller
             'name',
             'sector',
             'universe_type',
-            'is_active',
-            'monitoring_enabled',
+            'collect_data',
+            'eligible_for_analysis',
+            'eligible_for_calls',
             'latest_score',
         ];
         $sortBy = (string) ($request->query('sort_by') ?? 'ticker');
@@ -87,8 +88,6 @@ class AssetController extends Controller
             'ticker'                => $asset->ticker,
             'name'                  => $asset->name,
             'sector'                => $asset->sector,
-            'is_active'             => $asset->is_active,
-            'monitoring_enabled'    => $asset->monitoring_enabled,
             'collect_data'          => $asset->collect_data,
             'eligible_for_analysis' => $asset->eligible_for_analysis,
             'eligible_for_calls'    => $asset->eligible_for_calls,
@@ -145,7 +144,7 @@ class AssetController extends Controller
         $this->marketUniverseService->updateMembership(
             assetId: (int) $asset->id,
             universeType: 'data_universe',
-            isActive: (bool) $asset->monitoring_enabled,
+            isActive: true,
             manualReason: 'Ativo recém-cadastrado na base de monitoramento.',
             changedByUserId: $request->user() !== null ? (int) $request->user()->id : null,
         );
@@ -165,16 +164,6 @@ class AssetController extends Controller
 
         if ($asset->isDirty()) {
             $this->monitoredAssetRepository->save($asset);
-        }
-
-        if (array_key_exists('monitoring_enabled', $validated)) {
-            $this->marketUniverseService->updateMembership(
-                assetId: $id,
-                universeType: 'data_universe',
-                isActive: (bool) $asset->monitoring_enabled,
-                manualReason: 'Ajuste manual de monitoramento do ativo.',
-                changedByUserId: $request->user() !== null ? (int) $request->user()->id : null,
-            );
         }
 
         return response()->json([

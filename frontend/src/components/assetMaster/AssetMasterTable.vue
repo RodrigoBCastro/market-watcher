@@ -2,15 +2,16 @@
 import BaseButton from '../ui/BaseButton.vue'
 import DataTable from '../ui/DataTable.vue'
 import StatusBadge from '../ui/StatusBadge.vue'
-import { mdiEyeOutline, mdiOpenInNew } from '../../constants/icons'
+import { mdiCheckCircleOutline, mdiEyeOutline, mdiOpenInNew, mdiShieldAlertOutline } from '../../constants/icons'
 import { formatNumber } from '../../utils/format'
 
 defineProps({
   items: { type: Array, default: () => [] },
   loadingSymbol: { type: String, default: '' },
+  blacklistLoadingSymbol: { type: String, default: '' },
 })
 
-const emit = defineEmits(['open-asset', 'inspect-symbol'])
+const emit = defineEmits(['open-asset', 'inspect-symbol', 'toggle-blacklist'])
 
 const columns = [
   { key: 'symbol', label: 'Symbol' },
@@ -22,7 +23,7 @@ const columns = [
   { key: 'last_volume', label: 'Volume', align: 'right', format: (value) => formatNumber(value, 0) },
   { key: 'market_cap', label: 'Market Cap', align: 'right', format: (value) => formatNumber(value, 0) },
   { key: 'is_listed', label: 'Listado', align: 'center' },
-  { key: 'is_active', label: 'Ativo', align: 'center' },
+  { key: 'is_blacklisted_for_monitoring', label: 'Blacklist', align: 'center' },
   { key: 'universe', label: 'Universo' },
   { key: 'actions', label: 'Ações', align: 'right' },
 ]
@@ -34,8 +35,8 @@ const columns = [
       <StatusBadge :label="value ? 'sim' : 'não'" :tone="value ? 'positive' : 'warning'" />
     </template>
 
-    <template #cell-is_active="{ value }">
-      <StatusBadge :label="value ? 'sim' : 'não'" :tone="value ? 'positive' : 'negative'" />
+    <template #cell-is_blacklisted_for_monitoring="{ value }">
+      <StatusBadge :label="value ? 'bloqueado' : 'permitido'" :tone="value ? 'negative' : 'positive'" />
     </template>
 
     <template #cell-universe="{ row }">
@@ -56,15 +57,26 @@ const columns = [
         />
 
         <BaseButton
-        v-if="row?.monitored_asset?.ticker"
-        size="sm"
-        variant="ghost"
-        :icon-path="mdiOpenInNew"
-        icon-only
-        :aria-label="`Abrir ${row.monitored_asset.ticker}`"
-        :title="`Abrir ${row.monitored_asset.ticker}`"
-        @click="emit('open-asset', row.monitored_asset.ticker)"
-      />
+          size="sm"
+          :variant="row?.is_blacklisted_for_monitoring ? 'secondary' : 'danger'"
+          :icon-path="row?.is_blacklisted_for_monitoring ? mdiCheckCircleOutline : mdiShieldAlertOutline"
+          icon-only
+          :loading="blacklistLoadingSymbol === row.symbol"
+          :aria-label="row?.is_blacklisted_for_monitoring ? `Desbloquear ${row.symbol}` : `Bloquear ${row.symbol}`"
+          :title="row?.is_blacklisted_for_monitoring ? `Desbloquear ${row.symbol}` : `Bloquear ${row.symbol}`"
+          @click="emit('toggle-blacklist', row)"
+        />
+
+        <BaseButton
+          v-if="row?.monitored_asset?.ticker"
+          size="sm"
+          variant="ghost"
+          :icon-path="mdiOpenInNew"
+          icon-only
+          :aria-label="`Abrir ${row.monitored_asset.ticker}`"
+          :title="`Abrir ${row.monitored_asset.ticker}`"
+          @click="emit('open-asset', row.monitored_asset.ticker)"
+        />
         <span v-else class="muted">-</span>
       </div>
     </template>

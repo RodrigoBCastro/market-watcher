@@ -24,12 +24,14 @@ class AssetMaster extends Model
         'source',
         'source_payload',
         'is_listed',
-        'is_active',
+        'is_blacklisted_for_monitoring',
         'missing_sync_count',
         'first_seen_at',
         'last_seen_at',
         'delisted_at',
         'delisting_reason',
+        'blacklisted_at',
+        'blacklist_reason',
     ];
 
     /**
@@ -44,11 +46,12 @@ class AssetMaster extends Model
             'market_cap' => 'float',
             'source_payload' => 'array',
             'is_listed' => 'boolean',
-            'is_active' => 'boolean',
+            'is_blacklisted_for_monitoring' => 'boolean',
             'missing_sync_count' => 'integer',
             'first_seen_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'delisted_at' => 'datetime',
+            'blacklisted_at' => 'datetime',
         ];
     }
 
@@ -57,4 +60,3 @@ class AssetMaster extends Model
         return $this->hasOne(MonitoredAsset::class, 'asset_master_id');
     }
 }
-

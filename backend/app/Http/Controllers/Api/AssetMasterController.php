@@ -8,6 +8,7 @@ use App\Contracts\AssetMasterRegistryServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AdminActionRequest;
 use App\Http\Requests\BootstrapDataUniverseRequest;
+use App\Http\Requests\UpdateAssetMasterBlacklistRequest;
 use App\Jobs\BootstrapDataUniverseFromMasterJob;
 use App\Jobs\SyncAssetMasterFromBrapiJob;
 use Illuminate\Http\JsonResponse;
@@ -24,8 +25,8 @@ class AssetMasterController extends Controller
         return response()->json($this->assetMasterRegistryService->list([
             'type' => $request->query('type'),
             'sector' => $request->query('sector'),
-            'active' => $request->query('active'),
             'listed' => $request->query('listed'),
+            'blacklisted' => $request->query('blacklisted'),
             'universe' => $request->query('universe'),
             'search' => $request->query('search'),
             'limit' => $request->query('limit', 200),
@@ -85,5 +86,23 @@ class AssetMasterController extends Controller
             'message' => 'Bootstrap do Data Universe enfileirado.',
         ], 202);
     }
-}
 
+    public function setBlacklist(UpdateAssetMasterBlacklistRequest $request, string $symbol): JsonResponse
+    {
+        $payload = $request->validated();
+
+        $item = $this->assetMasterRegistryService->setMonitoringBlacklist(
+            symbol: $symbol,
+            isBlacklisted: (bool) ($payload['is_blacklisted'] ?? false),
+            reason: $payload['reason'] ?? null,
+            changedByUserId: $request->user() !== null ? (int) $request->user()->id : null,
+        );
+
+        return response()->json([
+            'message' => (bool) ($payload['is_blacklisted'] ?? false)
+                ? 'Ativo bloqueado para monitoramento.'
+                : 'Ativo removido da blacklist de monitoramento.',
+            'item' => $item,
+        ]);
+    }
+}

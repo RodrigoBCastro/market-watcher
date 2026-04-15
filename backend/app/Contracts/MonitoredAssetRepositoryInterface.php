@@ -18,10 +18,10 @@ interface MonitoredAssetRepositoryInterface
     public function cursorForCalls(?string $ticker = null): LazyCollection;
 
     /** Collection for SyncDataUniverseJob (collect_data). */
-    public function findActiveForDataCollection(?string $ticker = null): Collection;
+    public function findForDataCollection(?string $ticker = null): Collection;
 
-    /** All active assets, ordered by ticker. */
-    public function findAllActive(): Collection;
+    /** All monitored assets, ordered by ticker. */
+    public function findAll(): Collection;
 
     /**
      * Assets pending universe review (null or stale last_universe_review_at),
@@ -48,7 +48,7 @@ interface MonitoredAssetRepositoryInterface
     /**
      * Paginated listing with sorting support for watchlist table.
      *
-     * @param  string  $sortBy  Allowed: ticker,name,sector,universe_type,is_active,monitoring_enabled,latest_score
+     * @param  string  $sortBy  Allowed: ticker,name,sector,universe_type,collect_data,eligible_for_analysis,eligible_for_calls,latest_score
      * @param  string  $sortDirection  asc|desc
      */
     public function paginateForListing(int $page, int $perPage, string $sortBy, string $sortDirection): LengthAwarePaginator;

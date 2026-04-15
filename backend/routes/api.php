@@ -48,6 +48,8 @@ Route::middleware('api.token')->group(function (): void {
         ->where('symbol', '[A-Za-z0-9\^=\.\-]+');
     Route::post('/asset-master/sync', [AssetMasterController::class, 'sync']);
     Route::post('/asset-master/bootstrap-data-universe', [AssetMasterController::class, 'bootstrapDataUniverse']);
+    Route::patch('/asset-master/{symbol}/blacklist', [AssetMasterController::class, 'setBlacklist'])
+        ->where('symbol', '[A-Za-z0-9\^=\.\-]+');
 
     Route::get('/assets', [AssetController::class, 'index']);
     Route::post('/assets', [AssetController::class, 'store']);

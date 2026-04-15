@@ -13,8 +13,8 @@ class MonitoredAssetSeeder extends Seeder
     public function run(): void
     {
         $assets = AssetMaster::query()
-            ->where('is_active', true)
             ->where('is_listed', true)
+            ->where('is_blacklisted_for_monitoring', false)
             ->where('asset_type', 'stock')
             ->orderBy('symbol')
             ->limit(30)
@@ -27,8 +27,6 @@ class MonitoredAssetSeeder extends Seeder
                 'asset_master_id' => (int) $asset->id,
                 'name' => $asset->name,
                 'sector' => $asset->sector,
-                'is_active' => true,
-                'monitoring_enabled' => true,
                 'collect_data' => true,
                 'eligible_for_analysis' => false,
                 'eligible_for_calls' => false,

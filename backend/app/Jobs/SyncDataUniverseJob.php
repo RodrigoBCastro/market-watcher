@@ -68,7 +68,7 @@ class SyncDataUniverseJob implements ShouldQueue
             return;
         }
 
-        $assets   = $this->monitoredAssetRepository->findActiveForDataCollection($this->ticker);
+        $assets   = $this->monitoredAssetRepository->findForDataCollection($this->ticker);
         $fromMode = $fromDate === null ? 'disabled' : 'years_back';
 
         $syncLogger->log($run, 'info', 'Parâmetros de sincronização do Data Universe.', [

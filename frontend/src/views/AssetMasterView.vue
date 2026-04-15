@@ -24,6 +24,7 @@ const emit = defineEmits(['open-asset', 'notify'])
 const loading = ref(true)
 const error = ref('')
 const actionLoading = ref('')
+const blacklistLoadingSymbol = ref('')
 const items = ref([])
 const summary = ref({})
 const indexes = ref([])
@@ -33,7 +34,7 @@ const filters = ref({
   type: null,
   sector: null,
   listed: null,
-  active: null,
+  blacklisted: null,
   universe: null,
 })
 
@@ -181,6 +182,58 @@ async function runBootstrap(payload) {
   }
 }
 
+async function toggleBlacklist(item) {
+  const symbol = item?.symbol
+  if (!symbol || blacklistLoadingSymbol.value !== '') {
+    return
+  }
+
+  const nextStatus = !Boolean(item?.is_blacklisted_for_monitoring)
+  let reason = null
+
+  if (nextStatus) {
+    const typed = window.prompt(
+      `Motivo para bloquear ${symbol} no monitoramento (opcional):`,
+      item?.blacklist_reason || '',
+    )
+
+    if (typed === null) {
+      return
+    }
+
+    reason = typed && typed.trim() !== '' ? typed.trim() : null
+  }
+
+  blacklistLoadingSymbol.value = symbol
+
+  try {
+    const response = await props.api.setAssetMasterBlacklist(symbol, {
+      is_blacklisted: nextStatus,
+      reason,
+    })
+
+    if (detailItem.value?.symbol === symbol && response?.item) {
+      detailItem.value = response.item
+    }
+
+    emit('notify', {
+      tone: 'success',
+      message: response?.message || (nextStatus
+        ? `${symbol} bloqueado para monitoramento.`
+        : `${symbol} removido da blacklist.`),
+    })
+
+    await fetchAssetMaster()
+  } catch (requestError) {
+    emit('notify', {
+      tone: 'error',
+      message: requestError?.message || `Falha ao atualizar blacklist de ${symbol}.`,
+    })
+  } finally {
+    blacklistLoadingSymbol.value = ''
+  }
+}
+
 async function inspectSymbol(symbol) {
   if (!symbol) {
     return
@@ -269,7 +322,9 @@ onMounted(loadAll)
         <AssetMasterTable
           :items="items"
           :loading-symbol="detailLoadingSymbol"
+          :blacklist-loading-symbol="blacklistLoadingSymbol"
           @inspect-symbol="inspectSymbol"
+          @toggle-blacklist="toggleBlacklist"
           @open-asset="emit('open-asset', $event)"
         />
 
@@ -357,12 +412,19 @@ onMounted(loadAll)
 
       <div v-if="detailItem" class="detail-status-row">
         <StatusBadge :label="detailItem.is_listed ? 'listado' : 'não listado'" :tone="detailItem.is_listed ? 'positive' : 'warning'" />
-        <StatusBadge :label="detailItem.is_active ? 'ativo' : 'inativo'" :tone="detailItem.is_active ? 'positive' : 'negative'" />
+        <StatusBadge
+          :label="detailItem.is_blacklisted_for_monitoring ? 'blacklist monitoramento' : 'monitoramento permitido'"
+          :tone="detailItem.is_blacklisted_for_monitoring ? 'negative' : 'positive'"
+        />
         <StatusBadge
           :label="detailItem.monitored_asset ? 'monitorado' : 'fora do monitoramento'"
           :tone="detailItem.monitored_asset ? 'positive' : 'neutral'"
         />
       </div>
+
+      <p v-if="detailItem?.blacklist_reason" class="muted" style="margin-top: 12px;">
+        Motivo blacklist: {{ detailItem.blacklist_reason }}
+      </p>
     </BaseModal>
   </section>
 </template>

@@ -14,7 +14,7 @@ const cards = computed(() => [
   { key: 'bdr', title: 'BDRs' },
   { key: 'unknown', title: 'Unknown' },
   { key: 'listed', title: 'Listados' },
-  { key: 'active', title: 'Ativos' },
+  { key: 'blacklisted', title: 'Bloqueados' },
 ])
 
 function resolveValue(key) {

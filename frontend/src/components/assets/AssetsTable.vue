@@ -31,13 +31,20 @@ const columns = [
   { key: 'name', label: 'Nome', sortable: true, sortKey: 'name' },
   { key: 'sector', label: 'Setor', sortable: true, sortKey: 'sector' },
   { key: 'universe_type', label: 'Universo', sortable: true, sortKey: 'universe_type' },
-  { key: 'is_active', label: 'Ativo', align: 'center', sortable: true, sortKey: 'is_active' },
+  { key: 'collect_data', label: 'Data Universe', align: 'center', sortable: true, sortKey: 'collect_data' },
   {
-    key: 'monitoring_enabled',
-    label: 'Monitoramento',
+    key: 'eligible_for_analysis',
+    label: 'Elegível',
     align: 'center',
     sortable: true,
-    sortKey: 'monitoring_enabled',
+    sortKey: 'eligible_for_analysis',
+  },
+  {
+    key: 'eligible_for_calls',
+    label: 'Trading',
+    align: 'center',
+    sortable: true,
+    sortKey: 'eligible_for_calls',
   },
   {
     key: 'latest_score',
@@ -140,12 +147,16 @@ function scoreTone(value) {
       <span>{{ value || 'data_universe' }}</span>
     </template>
 
-    <template #cell-is_active="{ value }">
-      <span class="pill" :class="value ? 'is-positive' : 'is-negative'">{{ value ? 'Sim' : 'Não' }}</span>
+    <template #cell-collect_data="{ value }">
+      <span class="pill" :class="value ? 'is-positive' : 'is-warning'">{{ value ? 'Ligado' : 'Desligado' }}</span>
     </template>
 
-    <template #cell-monitoring_enabled="{ value }">
-      <span class="pill" :class="value ? 'is-positive' : 'is-warning'">{{ value ? 'Ligado' : 'Desligado' }}</span>
+    <template #cell-eligible_for_analysis="{ value }">
+      <span class="pill" :class="value ? 'is-positive' : 'is-neutral'">{{ value ? 'Sim' : 'Não' }}</span>
+    </template>
+
+    <template #cell-eligible_for_calls="{ value }">
+      <span class="pill" :class="value ? 'is-positive' : 'is-neutral'">{{ value ? 'Sim' : 'Não' }}</span>
     </template>
 
     <template #cell-latest_score="{ row }">

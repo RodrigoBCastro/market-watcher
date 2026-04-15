@@ -874,6 +874,12 @@ a {
   border-color: var(--pill-warning-border);
 }
 
+.pill.is-neutral {
+  color: var(--text-muted);
+  background: var(--bg-soft);
+  border-color: var(--border);
+}
+
 .inline-actions {
   display: inline-flex;
   gap: 6px;

@@ -81,6 +81,8 @@ export function createMarketApi(getToken) {
     getAssetMasterIndexes: (filters = {}) => http.get(`/asset-master/indexes${buildQuery(filters)}`),
     bootstrapDataUniverseFromMaster: (payload = {}, sync = false) =>
       http.post(sync ? '/asset-master/bootstrap-data-universe?sync=1' : '/asset-master/bootstrap-data-universe', payload),
+    setAssetMasterBlacklist: (symbol, payload = {}) =>
+      http.patch(`/asset-master/${encodeURIComponent(symbol)}/blacklist`, payload),
 
     getOpportunitiesTop: (date = null) =>
       http.get(date ? `/opportunities/top?date=${date}` : '/opportunities/top'),

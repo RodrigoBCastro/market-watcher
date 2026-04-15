@@ -140,7 +140,7 @@ class MarketUniverseService implements MarketUniverseServiceInterface
         $maxVolatility    = (float) ($cfg['max_volatility_20']                  ?? 8.5);
         $minOperability   = (float) ($cfg['min_operability_score']              ?? 55.0);
 
-        $assets   = $this->monitoredAssetRepository->findAllActive();
+        $assets   = $this->monitoredAssetRepository->findAll();
         $reviewed = 0;
         $promoted = 0;
         $demoted  = 0;
@@ -254,7 +254,7 @@ class MarketUniverseService implements MarketUniverseServiceInterface
         $maxVol         = (float) ($cfg['max_volatility_20']                  ?? 8.5);
         $minOperability = (float) ($cfg['min_operability_score']              ?? 55.0);
 
-        $assets        = $this->monitoredAssetRepository->findAllActive();
+        $assets        = $this->monitoredAssetRepository->findAll();
         $results       = [];
         $failureCounts = [];
 
@@ -610,7 +610,6 @@ class MarketUniverseService implements MarketUniverseServiceInterface
 
         $asset->fill([
             'collect_data'           => $dataActive,
-            'monitoring_enabled'     => $dataActive,
             'eligible_for_analysis'  => $eligibleActive,
             'eligible_for_calls'     => $tradingActive,
             'eligible_for_execution' => $tradingActive,

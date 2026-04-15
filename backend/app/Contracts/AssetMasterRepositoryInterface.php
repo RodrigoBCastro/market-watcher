@@ -37,7 +37,7 @@ interface AssetMasterRepositoryInterface
     public function findMissingListed(string $source, array $seenSymbols): Collection;
 
     /**
-     * Aggregate count summary: total + by asset_type + listed + active.
+     * Aggregate count summary: total + by asset_type + listed + blacklisted.
      *
      * @return array<string, int>
      */
@@ -45,7 +45,7 @@ interface AssetMasterRepositoryInterface
 
     /**
      * Filtered listing with monitoredAsset + universeMemberships eager-loaded.
-     * Supports keys: type, sector, active, listed, universe, search.
+     * Supports keys: type, sector, listed, blacklisted, universe, search.
      *
      * @param  array<string, mixed>  $filters
      * @return Collection<int, AssetMaster>

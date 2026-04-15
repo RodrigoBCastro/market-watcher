@@ -57,9 +57,6 @@ class AssetUniverseBootstrapService implements AssetUniverseBootstrapServiceInte
                     'asset_master_id'    => (int) $assetMaster->id,
                     'name'               => $assetMaster->name,
                     'sector'             => $assetMaster->sector,
-                    'is_active'          => true,
-                    'monitoring_enabled' => true,
-                    'collect_data'       => true,
                     'metadata'           => array_merge($currentMetadata, [
                         'asset_master' => [
                             'source'     => $assetMaster->source,

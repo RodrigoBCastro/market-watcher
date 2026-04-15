@@ -22,8 +22,6 @@ class StoreAssetRequest extends FormRequest
             'ticker' => ['required', 'string', 'max:12', 'unique:monitored_assets,ticker'],
             'name' => ['required', 'string', 'max:255'],
             'sector' => ['nullable', 'string', 'max:120'],
-            'is_active' => ['sometimes', 'boolean'],
-            'monitoring_enabled' => ['sometimes', 'boolean'],
             'metadata' => ['nullable', 'array'],
         ];
     }

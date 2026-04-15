@@ -16,8 +16,6 @@ return new class extends Migration
             $table->string('ticker', 12)->unique();
             $table->string('name');
             $table->string('sector')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->boolean('monitoring_enabled')->default(true);
             $table->boolean('collect_data')->default(true);
             $table->boolean('eligible_for_analysis')->default(false);
             $table->boolean('eligible_for_calls')->default(false);
@@ -39,11 +37,10 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->index(['monitoring_enabled', 'is_active']);
-            $table->index(['collect_data', 'is_active']);
-            $table->index(['eligible_for_analysis', 'is_active']);
-            $table->index(['eligible_for_calls', 'is_active']);
-            $table->index(['universe_type', 'is_active']);
+            $table->index(['collect_data']);
+            $table->index(['eligible_for_analysis']);
+            $table->index(['eligible_for_calls']);
+            $table->index(['universe_type']);
         });
     }
 

@@ -16,8 +16,6 @@ class MonitoredAsset extends Model
         'ticker',
         'name',
         'sector',
-        'is_active',
-        'monitoring_enabled',
         'collect_data',
         'eligible_for_analysis',
         'eligible_for_calls',
@@ -42,8 +40,6 @@ class MonitoredAsset extends Model
     protected function casts(): array
     {
         return [
-            'is_active' => 'boolean',
-            'monitoring_enabled' => 'boolean',
             'collect_data' => 'boolean',
             'eligible_for_analysis' => 'boolean',
             'eligible_for_calls' => 'boolean',

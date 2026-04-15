@@ -95,7 +95,7 @@ class EloquentAssetAnalysisScoreRepository implements AssetAnalysisScoreReposito
             ->whereDate('trade_date', $date)
             ->where('final_score', '>=', $minScore)
             ->whereHas('monitoredAsset', static function ($query): void {
-                $query->where('eligible_for_calls', true)->where('is_active', true);
+                $query->where('eligible_for_calls', true);
             })
             ->orderByDesc('final_score')
             ->get();

@@ -136,8 +136,6 @@ async function saveAsset(payload) {
     const basePayload = {
       name: payload.name,
       sector: payload.sector,
-      is_active: payload.is_active,
-      monitoring_enabled: payload.monitoring_enabled,
       metadata: payload.metadata,
     }
 

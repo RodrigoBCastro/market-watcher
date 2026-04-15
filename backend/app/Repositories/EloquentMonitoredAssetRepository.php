@@ -16,7 +16,6 @@ class EloquentMonitoredAssetRepository implements MonitoredAssetRepositoryInterf
     public function cursorForAnalysis(?string $ticker = null): LazyCollection
     {
         return MonitoredAsset::query()
-            ->where('is_active', true)
             ->where('eligible_for_analysis', true)
             ->when($ticker, static function ($query, string $t): void {
                 $query->where('ticker', strtoupper($t));
@@ -29,7 +28,6 @@ class EloquentMonitoredAssetRepository implements MonitoredAssetRepositoryInterf
     public function cursorForCalls(?string $ticker = null): LazyCollection
     {
         return MonitoredAsset::query()
-            ->where('is_active', true)
             ->where('eligible_for_calls', true)
             ->when($ticker, static function ($query, string $t): void {
                 $query->where('ticker', strtoupper($t));
@@ -39,10 +37,9 @@ class EloquentMonitoredAssetRepository implements MonitoredAssetRepositoryInterf
             ->cursor();
     }
 
-    public function findActiveForDataCollection(?string $ticker = null): Collection
+    public function findForDataCollection(?string $ticker = null): Collection
     {
         return MonitoredAsset::query()
-            ->where('is_active', true)
             ->where('collect_data', true)
             ->when($ticker, static function ($query, string $t): void {
                 $query->where('ticker', strtoupper($t));
@@ -52,10 +49,9 @@ class EloquentMonitoredAssetRepository implements MonitoredAssetRepositoryInterf
             ->get();
     }
 
-    public function findAllActive(): Collection
+    public function findAll(): Collection
     {
         return MonitoredAsset::query()
-            ->where('is_active', true)
             ->orderBy('ticker')
             ->get();
     }
@@ -63,7 +59,6 @@ class EloquentMonitoredAssetRepository implements MonitoredAssetRepositoryInterf
     public function findStaleUniverseReview(int $staleAfterDays, int $limit): Collection
     {
         return MonitoredAsset::query()
-            ->where('is_active', true)
             ->where(static function ($query) use ($staleAfterDays): void {
                 $query->whereNull('last_universe_review_at')
                     ->orWhere('last_universe_review_at', '<', now()->subDays($staleAfterDays));
@@ -115,8 +110,9 @@ class EloquentMonitoredAssetRepository implements MonitoredAssetRepositoryInterf
             'name' => 'name',
             'sector' => 'sector',
             'universe_type' => 'universe_type',
-            'is_active' => 'is_active',
-            'monitoring_enabled' => 'monitoring_enabled',
+            'collect_data' => 'collect_data',
+            'eligible_for_analysis' => 'eligible_for_analysis',
+            'eligible_for_calls' => 'eligible_for_calls',
         ];
 
         $query = MonitoredAsset::query()

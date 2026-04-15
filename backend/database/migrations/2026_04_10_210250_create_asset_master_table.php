@@ -24,16 +24,18 @@ return new class extends Migration
             $table->string('source', 32)->default('brapi');
             $table->json('source_payload')->nullable();
             $table->boolean('is_listed')->default(true);
-            $table->boolean('is_active')->default(true);
+            $table->boolean('is_blacklisted_for_monitoring')->default(false);
             $table->unsignedInteger('missing_sync_count')->default(0);
             $table->timestamp('first_seen_at')->nullable();
             $table->timestamp('last_seen_at')->nullable();
             $table->timestamp('delisted_at')->nullable();
             $table->string('delisting_reason')->nullable();
+            $table->timestamp('blacklisted_at')->nullable();
+            $table->string('blacklist_reason')->nullable();
             $table->timestamps();
 
-            $table->index(['asset_type', 'is_active']);
-            $table->index(['is_listed', 'is_active']);
+            $table->index(['is_listed', 'is_blacklisted_for_monitoring']);
+            $table->index(['asset_type', 'is_listed', 'is_blacklisted_for_monitoring']);
             $table->index(['sector']);
         });
     }
@@ -43,4 +45,3 @@ return new class extends Migration
         Schema::dropIfExists('asset_master');
     }
 };
-

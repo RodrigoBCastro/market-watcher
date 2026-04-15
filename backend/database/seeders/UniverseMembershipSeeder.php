@@ -46,7 +46,6 @@ class UniverseMembershipSeeder extends Seeder
 
             $asset->update([
                 'collect_data' => true,
-                'monitoring_enabled' => true,
                 'eligible_for_analysis' => $isEligible,
                 'eligible_for_calls' => $isTrading,
                 'eligible_for_execution' => $isTrading,
@@ -74,4 +73,3 @@ class UniverseMembershipSeeder extends Seeder
         );
     }
 }
-

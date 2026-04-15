@@ -58,8 +58,8 @@ class EloquentAssetMasterRepository implements AssetMasterRepositoryInterface
         $limit = max(1, min((int) ($filters['limit'] ?? config('market.bootstrap.default_limit', 1000)), 5000));
 
         $query = AssetMaster::query()
-            ->where('is_active', true)
             ->where('is_listed', true)
+            ->where('is_blacklisted_for_monitoring', false)
             ->whereIn('asset_type', $assetTypes)
             ->orderBy('symbol');
 
@@ -122,7 +122,7 @@ class EloquentAssetMasterRepository implements AssetMasterRepositoryInterface
             'index'        => (int) ($typeCounts['index'] ?? 0),
             'unknown'      => (int) ($typeCounts['unknown'] ?? 0),
             'listed'       => AssetMaster::query()->where('is_listed', true)->count(),
-            'active'       => AssetMaster::query()->where('is_active', true)->count(),
+            'blacklisted'  => AssetMaster::query()->where('is_blacklisted_for_monitoring', true)->count(),
         ];
     }
 
@@ -143,12 +143,12 @@ class EloquentAssetMasterRepository implements AssetMasterRepositoryInterface
             $query->where('sector', (string) $filters['sector']);
         }
 
-        if (($filters['active'] ?? null) !== null && $filters['active'] !== '') {
-            $query->where('is_active', $this->toBool($filters['active']));
-        }
-
         if (($filters['listed'] ?? null) !== null && $filters['listed'] !== '') {
             $query->where('is_listed', $this->toBool($filters['listed']));
+        }
+
+        if (($filters['blacklisted'] ?? null) !== null && $filters['blacklisted'] !== '') {
+            $query->where('is_blacklisted_for_monitoring', $this->toBool($filters['blacklisted']));
         }
 
         if (($filters['universe'] ?? null) !== null && $filters['universe'] !== '') {
