@@ -5,7 +5,8 @@ declare(strict_types=1);
 return [
     'sync' => [
         'asset_days' => (int) env('MARKET_SYNC_ASSET_DAYS', 90),
-        'start_years_back' => (int) env('MARKET_SYNC_START_YEARS_BACK', 10),
+        'date_back' => (string) env('MARKET_SYNC_DATE_BACK', null),
+        'start_years_back' => (int) env('MARKET_SYNC_START_YEARS_BACK', 15),
         'batch_size' => (int) env('MARKET_SYNC_BATCH_SIZE', 20),
         'min_records_per_asset' => (int) env('MARKET_SYNC_MIN_RECORDS_PER_ASSET', 1),
         'empty_quotes_retries' => (int) env('MARKET_SYNC_EMPTY_QUOTES_RETRIES', 2),

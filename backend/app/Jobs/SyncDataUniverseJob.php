@@ -55,10 +55,11 @@ class SyncDataUniverseJob implements ShouldQueue
         $failed    = 0;
 
         try {
-            $days          = $this->resolveDays();
+            $days           = $this->resolveDays();
             $startYearsBack = $this->resolveStartYearsBack();
-            $fromDate      = $this->resolveFromDate($startYearsBack);
-            $batchSize     = $this->resolveBatchSize();
+            $dateBack       = $this->resolveDateBack();
+            $fromDate       = $this->resolveFromDate($startYearsBack, $dateBack);
+            $batchSize      = $this->resolveBatchSize();
         } catch (Throwable $exception) {
             $syncLogger->log($run, 'error', 'Parâmetros inválidos para sincronização do Data Universe.', [
                 'error' => $exception->getMessage(),
@@ -384,18 +385,27 @@ class SyncDataUniverseJob implements ShouldQueue
         return max(0, min((int) config('market.sync.empty_quotes_retry_sleep_ms', 250), 5000));
     }
 
-    private function resolveFromDate(int $startYearsBack): ?string
+    private function resolveFromDate(int $startYearsBack, ?string $dateBack): ?string
     {
-        if ($startYearsBack <= 0) {
-            return null;
+        if (!empty($dateBack)) {
+            return CarbonImmutable::parse($dateBack)->toDateString();
         }
 
-        return CarbonImmutable::now()->subYears($startYearsBack)->toDateString();
+        if ($startYearsBack > 0) {
+            return CarbonImmutable::now()->subYears($startYearsBack)->toDateString();
+        }
+
+        return null;
     }
 
     private function resolveStartYearsBack(): int
     {
-        return max(0, (int) config('market.sync.start_years_back', 10));
+        return max(0, (int) config('market.sync.start_years_back', 15));
+    }
+
+    private function resolveDateBack(): string
+    {
+        return config('market.sync.date_back', null);
     }
 
     private function resolveBatchSize(): int
